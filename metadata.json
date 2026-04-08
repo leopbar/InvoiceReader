@@ -1,0 +1,5 @@
+{
+  "name": "Invoice Reader",
+  "description": "A full-stack application with a React frontend and FastAPI backend for reading invoices.",
+  "requestFramePermissions": []
+}
