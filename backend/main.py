@@ -215,3 +215,10 @@ def delete_system_user(target_id: str, admin_user = Depends(verify_admin)):
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+if __name__ == "__main__":
+    import os
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    host = os.environ.get("HOST", "0.0.0.0")
+    uvicorn.run("backend.main:app", host=host, port=port, reload=False)
