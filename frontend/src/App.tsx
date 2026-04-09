@@ -1,20 +1,121 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import { Receipt, Archive, Upload, Users, LogOut, Loader2 } from 'lucide-react';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
-export default function App() {
+import UploadPage from './pages/UploadPage';
+import HistoryPage from './pages/HistoryPage';
+import InvoiceDetailPage from './pages/InvoiceDetailPage';
+import LoginPage from './pages/LoginPage';
+import UserManagementPage from './pages/UserManagementPage';
+
+function Navigation() {
+  const location = useLocation();
+  const path = location.pathname;
+  const { user, isAdmin, signOut } = useAuth();
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-xl shadow-sm p-8 text-center space-y-4 border border-gray-100">
-        <h1 className="text-2xl font-semibold text-gray-900">Invoice Reader</h1>
-        <p className="text-gray-500">
-          Frontend is running! The FastAPI backend is located in the <code>/backend</code> directory.
-        </p>
-        <div className="bg-blue-50 text-blue-700 text-sm rounded-lg p-4 text-left">
-          <strong>Note:</strong> This preview environment runs Node.js. To run the Python backend, export the project and run it locally.
+    <nav className="bg-white border-b shadow-sm sticky top-0 z-10 w-full">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-16">
+          <div className="flex items-center space-x-3">
+            <div className="bg-blue-600 p-2 rounded-lg text-white">
+              <Receipt size={24} />
+            </div>
+            <span className="font-bold text-xl text-gray-900 tracking-tight">Invoice Reader</span>
+          </div>
+          
+          <div className="flex items-center space-x-4">
+            <Link 
+              to="/" 
+              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                path === '/' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+              }`}
+            >
+              <Upload size={18} />
+              <span>Upload</span>
+            </Link>
+            <Link 
+              to="/history" 
+              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                path.startsWith('/history') || path.startsWith('/invoice') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+              }`}
+            >
+              <Archive size={18} />
+              <span>History</span>
+            </Link>
+
+            {isAdmin && (
+              <Link 
+                to="/users" 
+                className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  path.startsWith('/users') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+                }`}
+              >
+                <Users size={18} />
+                <span>Users</span>
+              </Link>
+            )}
+
+            <div className="pl-4 ml-2 border-l border-gray-200 flex items-center space-x-3">
+              <span className="text-sm font-medium text-gray-600 truncate max-w-[150px]">
+                {user?.email}
+              </span>
+              <button
+                onClick={signOut}
+                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                title="Sign Out"
+              >
+                <LogOut size={18} />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
+    </nav>
+  );
+}
+
+function PrivateApp() {
+  const { session, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Loader2 className="animate-spin text-blue-500" size={48} />
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <LoginPage />;
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 relative pb-12">
+      <Navigation />
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+        <Routes>
+          <Route path="/" element={<UploadPage />} />
+          <Route path="/history" element={<HistoryPage />} />
+          <Route path="/invoice/:id" element={<InvoiceDetailPage />} />
+          <Route path="/users" element={<UserManagementPage />} />
+        </Routes>
+      </main>
     </div>
   );
 }
+
+function App() {
+  return (
+    <AuthProvider>
+      <Router>
+        <Toaster position="top-center" />
+        <PrivateApp />
+      </Router>
+    </AuthProvider>
+  );
+}
+
+export default App;
