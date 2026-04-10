@@ -63,3 +63,8 @@ export const deleteUser = async (userId: string) => {
   const response = await apiClient.delete(`/users/${userId}`);
   return response.data;
 };
+
+export const getMe = async () => {
+  const response = await apiClient.get('/me');
+  return response.data;
+};

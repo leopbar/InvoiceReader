@@ -80,6 +80,18 @@ def read_root():
 def health_check():
     return {"status": "ok"}
 
+@app.get("/api/me")
+def get_me(user = Depends(verify_token)):
+    try:
+        # We skip RLS by using supabase_admin to check for the user's role
+        role_res = supabase_admin.table("user_roles").select("role").eq("user_id", user.id).execute()
+        role = role_res.data[0]["role"] if role_res.data else "user"
+        return {"id": user.id, "email": user.email, "role": role}
+    except Exception as e:
+        logger.error(f"Error fetching user role: {str(e)}")
+        # Default to user role if check fails
+        return {"id": user.id, "email": user.email, "role": "user"}
+
 @app.post("/api/upload")
 async def upload_invoice(file: UploadFile = File(...), user = Depends(verify_token)):
     try:
