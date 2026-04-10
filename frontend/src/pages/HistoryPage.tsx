@@ -398,6 +398,15 @@ export default function HistoryPage() {
                       const val = col.getValue(inv);
                       // Custom rendering for specifics
                       let displayVal = val || '-';
+                      
+                      // Format currency for certain fields
+                      if (['total_amount', 'subtotal', 'tax_amount', 'discount'].includes(col.id) && val !== null && val !== undefined) {
+                        displayVal = new Intl.NumberFormat('en-US', {
+                          style: 'currency',
+                          currency: inv.currency || 'USD'
+                        }).format(Number(val));
+                      }
+
                       if (col.id === 'status') {
                         return (
                           <td key={col.id} className="px-6 py-3">
