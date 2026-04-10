@@ -15,7 +15,12 @@ from backend.database import supabase, supabase_admin
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("invoice_reader")
 
-app = FastAPI(title="Invoice Reader API")
+environment = os.environ.get("ENVIRONMENT", "production")
+
+if environment == "production":
+    app = FastAPI(title="Invoice Reader API", docs_url=None, redoc_url=None)
+else:
+    app = FastAPI(title="Invoice Reader API")
 
 # CORS: load allowed origins from env, fallback to localhost for dev
 _cors_origins_raw = os.environ.get("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
