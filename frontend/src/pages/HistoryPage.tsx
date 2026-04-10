@@ -281,7 +281,7 @@ export default function HistoryPage() {
             onClick={copyAllVisible}
             className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition shadow-sm"
           >
-            <Download size={16} />
+            <Copy size={16} />
             <span>Copy All Visible Data</span>
           </button>
           
