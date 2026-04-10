@@ -145,6 +145,21 @@ def list_invoices(user = Depends(verify_token)):
         logger.error(f"Error listing invoices: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
+class DeleteInvoicesRequest(BaseModel):
+    invoice_ids: list[str]
+
+@app.post("/api/invoices/delete")
+def delete_invoices(request: DeleteInvoicesRequest, user = Depends(verify_token)):
+    try:
+        if not request.invoice_ids:
+            return {"status": "success", "deleted": 0}
+            
+        res = supabase.table("invoices").delete().in_("id", request.invoice_ids).execute()
+        return {"status": "success", "deleted": len(request.invoice_ids)}
+    except Exception as e:
+        logger.error(f"Error deleting invoices: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/invoices/{id}")
 def get_invoice(id: str, user = Depends(verify_token)):
     try:

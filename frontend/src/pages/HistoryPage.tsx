@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, FileText, Settings, Copy, Download, FileDown } from 'lucide-react';
+import { Loader2, FileText, Settings, Copy, Download, FileDown, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getInvoices } from '../services/api';
+import { getInvoices, deleteInvoices } from '../services/api';
 
 const getAddress = (inv: any, type: string) => {
   if (!inv.invoice_addresses) return {};
@@ -66,6 +66,9 @@ const DEFAULT_COLUMNS = ['invoice_number', 'supplier_name', 'invoice_date', 'tot
 export default function HistoryPage() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const navigate = useNavigate();
 
   // Column Selector State
@@ -138,6 +141,41 @@ export default function HistoryPage() {
     const values = invoices.map(inv => col.getValue(inv) || '');
     navigator.clipboard.writeText(values.join('\n'));
     toast.success('Column copied!');
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedInvoices.length === invoices.length) {
+      setSelectedInvoices([]);
+    } else {
+      setSelectedInvoices(invoices.map(inv => inv.id));
+    }
+  };
+
+  const toggleSelectInvoice = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedInvoices(prev => 
+      prev.includes(id) ? prev.filter(invId => invId !== id) : [...prev, id]
+    );
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedInvoices.length === 0) return;
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await deleteInvoices(selectedInvoices);
+      toast.success(`Successfully deleted ${selectedInvoices.length} invoice(s)`);
+      setSelectedInvoices([]);
+      fetchInvoices();
+    } catch (err) {
+      toast.error('Failed to delete invoices');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
+    }
   };
 
   const copyAllVisible = () => {
@@ -220,6 +258,17 @@ export default function HistoryPage() {
         </div>
         
         <div className="flex items-center space-x-3 relative">
+          {selectedInvoices.length > 0 && (
+            <button
+              onClick={handleDeleteSelected}
+              disabled={isDeleting}
+              className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition shadow-sm disabled:opacity-50 mr-2"
+            >
+              {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+              <span>Delete Selected ({selectedInvoices.length})</span>
+            </button>
+          )}
+
           <button
             onClick={downloadCSV}
             className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition shadow-sm"
@@ -305,6 +354,14 @@ export default function HistoryPage() {
             <table className="w-full text-left border-collapse whitespace-nowrap">
               <thead className="bg-gray-50 sticky top-0 z-10 border-b border-gray-200 shadow-sm">
                 <tr>
+                  <th className="px-4 py-4 w-12 text-center border-r border-gray-100">
+                    <input 
+                      type="checkbox"
+                      checked={invoices.length > 0 && selectedInvoices.length === invoices.length}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 cursor-pointer"
+                    />
+                  </th>
                   {activeColumns.map(col => (
                     <th key={col.id} className="px-6 py-4 font-semibold text-gray-700 text-sm group relative">
                       <div className="flex items-center justify-between space-x-2">
@@ -326,8 +383,17 @@ export default function HistoryPage() {
                   <tr 
                     key={inv.id} 
                     onClick={() => navigate(`/invoice/${inv.id}`)}
-                    className={`cursor-pointer transition-colors hover:bg-blue-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
+                    className={`cursor-pointer transition-colors hover:bg-blue-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} ${selectedInvoices.includes(inv.id) ? 'bg-blue-50/70 border-l-4 border-l-blue-500' : 'border-l-4 border-transparent'}`}
                   >
+                    <td className="px-4 py-3 text-center border-r border-gray-50" onClick={e => e.stopPropagation()}>
+                      <input 
+                        type="checkbox"
+                        checked={selectedInvoices.includes(inv.id)}
+                        onChange={(e) => toggleSelectInvoice(inv.id, e as any)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 cursor-pointer"
+                      />
+                    </td>
                     {activeColumns.map(col => {
                       const val = col.getValue(inv);
                       // Custom rendering for specifics
@@ -352,6 +418,44 @@ export default function HistoryPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6">
+              <div className="flex flex-col items-center text-center space-y-4 mb-6">
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-red-600">
+                  <Trash2 size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Delete Invoices</h3>
+                  <p className="text-gray-500 mt-2 text-[15px]">
+                    Are you sure you want to delete <span className="font-bold text-gray-800">{selectedInvoices.length}</span> selected invoice{selectedInvoices.length === 1 ? '' : 's'}? 
+                    This action cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <div className="flex space-x-3 w-full">
+                <button 
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={isDeleting}
+                  className="w-1/2 py-2.5 text-gray-700 font-medium hover:bg-gray-100 rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={confirmDelete}
+                  disabled={isDeleting}
+                  className="w-1/2 py-2.5 bg-red-600 text-white font-medium hover:bg-red-700 rounded-xl transition flex text-center justify-center items-center space-x-2 disabled:opacity-50"
+                >
+                  {isDeleting ? <Loader2 size={18} className="animate-spin" /> : <span>Yes, Delete</span>}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

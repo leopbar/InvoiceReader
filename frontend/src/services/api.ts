@@ -44,6 +44,11 @@ export const getInvoiceById = async (id: string) => {
   return response.data;
 };
 
+export const deleteInvoices = async (invoiceIds: string[]) => {
+  const response = await apiClient.post('/invoices/delete', { invoice_ids: invoiceIds });
+  return response.data;
+};
+
 export const getUsers = async () => {
   const response = await apiClient.get('/users');
   return response.data;
