@@ -71,21 +71,43 @@ def regex_extract_node(state: GraphState) -> GraphState:
         return state
     
     logger.info("Node: regex_extract")
-    regex_result = extract_with_regex(state["cleaned_text"])
-    
-    state["regex_data"] = regex_result["extracted_data"]
-    state["regex_confidence"] = regex_result["confidence_score"]
-    
-    if state["regex_confidence"] >= 0.75:
-        logger.info("Regex extraction sufficient — AI skipped, 0 tokens used")
-        state["ai_skipped"] = True
-        state["extracted_data"] = state["regex_data"]
-    else:
-        logger.info(f"Regex confidence low ({state['regex_confidence']}). Proceeding to AI.")
+    try:
+        regex_result = extract_with_regex(state["cleaned_text"])
+        
+        state["regex_data"] = regex_result["extracted_data"]
+        state["regex_confidence"] = regex_result["confidence_score"]
+        
+        if state["regex_confidence"] >= 0.75:
+            logger.info("Regex extraction sufficient — AI skipped, 0 tokens used")
+            state["ai_skipped"] = True
+            state["extracted_data"] = state["regex_data"]
+        else:
+            logger.info(f"Regex confidence low ({state['regex_confidence']}). Proceeding to AI.")
+            state["ai_skipped"] = False
+            state["extraction_method"] = "regex_plus_ai"
+            # Cleanup existing data for this file before retrying with AI
+            _cleanup_db_for_file(state["filename"])
+            
+    except Exception as e:
+        logger.error(f"Error in custom Python regex extraction: {str(e)}")
+        logger.info("Falling back to AI extraction immediately.")
+        state["regex_confidence"] = 0.0
         state["ai_skipped"] = False
-        state["extraction_method"] = "regex_plus_ai"
+        state["extraction_method"] = "ai_only"
+        state["error"] = f"Regex Error: {str(e)}"
+        # Cleanup existing data for this file before retrying with AI
+        _cleanup_db_for_file(state["filename"])
         
     return state
+
+def _cleanup_db_for_file(filename: str):
+    """Internal helper to remove any existing data for a specific filename before re-processing."""
+    try:
+        from backend.supabase_service import delete_invoice_by_filename
+        delete_invoice_by_filename(filename)
+        logger.info(f"Cleaned up any existing database records for: {filename}")
+    except Exception as e:
+        logger.warning(f"Cleanup failed for {filename}: {e}")
 
 def extract_invoice_node(state: GraphState) -> GraphState:
     logger.info(f"Node: extract_invoice | Retry: {state['retry_count']}")

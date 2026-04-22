@@ -47,6 +47,7 @@ def extract_invoice_data(file_bytes: bytes = None, filename: str = None, text: s
     # Add extraction info to the data
     extracted_data["ai_skipped"] = ai_skipped
     extracted_data["extraction_method"] = extraction_method
+    extracted_data["original_filename"] = filename
     
     # 3. Token estimation
     if ai_skipped:

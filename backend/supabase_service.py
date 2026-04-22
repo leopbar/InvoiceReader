@@ -40,6 +40,7 @@ def save_invoice(data: dict) -> str:
         "payment_terms": inv_info.get("payment_terms"),
         "purchase_order": inv_info.get("purchase_order"),
         "notes": data.get("notes"),
+        "original_filename": data.get("original_filename"),
         "status": "processed"
     }
     
@@ -102,3 +103,17 @@ def update_processing_stats(stats: dict):
     except Exception:
         # If table doesn't exist yet or other error, just ignore
         pass
+
+def delete_invoice_by_filename(filename: str):
+    """Removes all data related to an invoice based on its original filename."""
+    try:
+        # Find the invoice(s) with this filename
+        res = supabase.table("invoices").select("id").eq("original_filename", filename).execute()
+        if res.data:
+            invoice_ids = [row["id"] for row in res.data]
+            # Delete using the existing list-based delete function or manually
+            # Supabase delete cascades depend on FK configuration, but we'll try to be safe
+            supabase.table("invoices").delete().in_("id", invoice_ids).execute()
+    except Exception as e:
+        logger.error(f"Error deleting invoice by filename {filename}: {e}")
+        raise e
