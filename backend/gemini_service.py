@@ -1,112 +1,61 @@
 import os
-import json
-import google.generativeai as genai
+import logging
+from typing import Optional
 from dotenv import load_dotenv
 
+# Absolute imports to be consistent with main.py
+from backend.invoice_graph import run_invoice_workflow
+from backend.cache_service import cache_service
+from backend.text_preprocessor import estimate_tokens
+
+logger = logging.getLogger(__name__)
+
+# Load environment variables
 env_path = os.path.join(os.path.dirname(__file__), ".env")
 load_dotenv(dotenv_path=env_path)
 
-# Configure API key
-api_key = os.environ.get("GEMINI_API_KEY")
-if api_key:
-    genai.configure(api_key=api_key)
+def extract_invoice_data(file_bytes: bytes = None, filename: str = None, text: str = None, image_base64: str = None):
+    """
+    Extracts invoice data using the LangGraph workflow.
+    - Checks cache first.
+    - If miss, runs the LangGraph workflow.
+    - Caches the result.
+    - Returns structured data.
+    """
+    if not file_bytes:
+        logger.warning("extract_invoice_data called without file_bytes. This may bypass caching.")
+        raise ValueError("file_bytes is required for the new workflow.")
 
-PROMPT = """
-You are an expert invoice data extraction AI. Analyze the following invoice content and extract ALL data into a structured JSON format.
+    # 1. Check cache first
+    file_hash = cache_service.hash_file(file_bytes)
+    cached_entry = cache_service.get_cached(file_hash)
+    
+    if cached_entry:
+        logger.info(f"Returning cached result for {filename}")
+        # When hitting cache, we "save" the tokens that would have been used
+        # We retrieve the token count from the cache entry
+        tokens_saved = cached_entry.get("estimated_tokens", 500) # Default if missing
+        cache_service.tokens_saved += tokens_saved
+        return cached_entry.get("data")
 
-Return ONLY valid JSON with no additional text, no markdown formatting, no code blocks. Just pure JSON.
-
-Extract the following structure:
-{
-  "supplier": {
-    "name": "Company name of the supplier/vendor",
-    "address": "Full address",
-    "email": "Email if present",
-    "phone": "Phone if present",
-    "tax_id": "Tax ID / VAT number / EIN if present"
-  },
-  "invoice_info": {
-    "invoice_number": "Invoice number/ID",
-    "invoice_date": "Date issued (YYYY-MM-DD format)",
-    "due_date": "Payment due date (YYYY-MM-DD format)",
-    "currency": "Currency code (USD, EUR, GBP, etc.)",
-    "payment_terms": "Payment terms if stated (Net 30, etc.)",
-    "purchase_order": "PO number if present"
-  },
-  "bill_to": {
-    "company_name": "Bill-to company name",
-    "address_line": "Street address",
-    "city": "City",
-    "state": "State/Province",
-    "zip_code": "ZIP/Postal code",
-    "country": "Country"
-  },
-  "ship_to": {
-    "company_name": "Ship-to company name (if different from bill-to)",
-    "address_line": "Street address",
-    "city": "City",
-    "state": "State/Province",
-    "zip_code": "ZIP/Postal code",
-    "country": "Country"
-  },
-  "line_items": [
-    {
-      "description": "Item description",
-      "quantity": 0,
-      "unit": "Unit of measure",
-      "unit_price": 0.00,
-      "total_price": 0.00,
-      "item_code": "SKU/Item code if present"
-    }
-  ],
-  "totals": {
-    "subtotal": 0.00,
-    "tax_amount": 0.00,
-    "discount": 0.00,
-    "total_amount": 0.00
-  },
-  "notes": "Any additional notes, terms, or bank details on the invoice"
-}
-
-If any field is not found in the invoice, use null for that field.
-For dates, always convert to YYYY-MM-DD format.
-For monetary values, use numbers without currency symbols.
-
-Invoice content to analyze:
-"""
-
-def extract_invoice_data(text=None, image_base64=None):
-    try:
-        model = genai.GenerativeModel("gemini-3-flash-preview")
+    # 2. Run LangGraph workflow
+    logger.info(f"Cache miss for {filename}. Running LangGraph workflow...")
+    result = run_invoice_workflow(file_bytes, filename)
+    
+    extracted_data = result.get("extracted_data")
+    
+    # Estimate tokens used for this request
+    # Prompt (~200) + Cleaned Text
+    cleaned_text = result.get("cleaned_text", "")
+    text_tokens = estimate_tokens(cleaned_text)
+    total_estimated_tokens = 200 + text_tokens
+    
+    # 3. Cache the result along with token estimate
+    if extracted_data:
+        cache_entry = {
+            "data": extracted_data,
+            "estimated_tokens": total_estimated_tokens
+        }
+        cache_service.set_cache(file_hash, cache_entry)
         
-        contents = [PROMPT]
-        
-        if text:
-            contents.append(text)
-            
-        if image_base64:
-            contents.append(
-                {"mime_type": "image/jpeg", "data": image_base64}
-            )
-            
-        response = model.generate_content(contents)
-        
-        response_text = response.text.strip()
-        print(f"Raw Model Response Length: {len(response_text)}")
-        
-        # Find the first '{' and the last '}' to extract the JSON dictionary block
-        start_idx = response_text.find('{')
-        end_idx = response_text.rfind('}')
-        
-        if start_idx != -1 and end_idx != -1 and end_idx >= start_idx:
-            json_str = response_text[start_idx:end_idx+1]
-            try:
-                parsed_json = json.loads(json_str)
-                return parsed_json
-            except json.JSONDecodeError as de:
-                raise Exception(f"AI returned improperly formatted JSON. Parse error: {str(de)}")
-        else:
-            raise Exception("The AI model did not return any JSON object.")
-    except Exception as e:
-        print(f"Error extracting data with Gemini: {str(e)}")
-        raise e
+    return extracted_data

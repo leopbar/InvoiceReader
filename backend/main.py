@@ -10,6 +10,8 @@ from backend.file_processor import process_file
 from backend.gemini_service import extract_invoice_data
 from backend.supabase_service import save_invoice
 from backend.database import supabase, supabase_admin
+from backend.cache_service import cache_service
+from backend.text_preprocessor import estimate_tokens
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -105,19 +107,18 @@ async def upload_invoice(file: UploadFile = File(...), user = Depends(verify_tok
         
         filename = file.filename
         
-        extracted = process_file(file_bytes, filename)
-        text = extracted.get("text")
-        image_base64 = extracted.get("image_base64")
+        # New workflow: pass file_bytes and filename directly
+        invoice_json = extract_invoice_data(file_bytes=file_bytes, filename=filename)
         
-        if not text and not image_base64:
-            raise HTTPException(status_code=400, detail="Could not extract text or image from file.")
-            
-        invoice_json = extract_invoice_data(text=text, image_base64=image_base64)
-        
-        invoice_json["metadata"] = {
-            "original_filename": filename,
-            "file_type": extracted.get("file_type")
-        }
+        if not invoice_json:
+            raise HTTPException(status_code=400, detail="Could not extract data from invoice.")
+
+        # Ensure metadata is present for frontend and database
+        if "metadata" not in invoice_json:
+            invoice_json["metadata"] = {
+                "original_filename": filename,
+                "file_type": filename.split('.')[-1].lower() if '.' in filename else ''
+            }
         
         return invoice_json
         
@@ -247,6 +248,10 @@ def delete_system_user(target_id: str, admin_user = Depends(verify_admin)):
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/stats")
+def get_stats(user = Depends(verify_token)):
+    return cache_service.get_stats()
 
 if __name__ == "__main__":
     import os
