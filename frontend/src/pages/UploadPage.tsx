@@ -164,7 +164,7 @@ export default function UploadPage() {
             
             <div className="p-6">
               {result.status === 'success' && result.data && (
-                  <ExtractedDataDisplay data={result.data} showSaveButton={true} />
+                  <ExtractedDataDisplay data={result.data} />
               )}
             </div>
           </div>

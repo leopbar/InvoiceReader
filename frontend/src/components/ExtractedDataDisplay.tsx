@@ -5,12 +5,10 @@ import { saveInvoice } from '../services/api';
 
 interface ExtractedDataDisplayProps {
   data: any;
-  showSaveButton?: boolean;
 }
 
-export default function ExtractedDataDisplay({ data, showSaveButton = false }: ExtractedDataDisplayProps) {
-  const [isSaving, setIsSaving] = useState(false);
-  const [localSaveStatus, setLocalSaveStatus] = useState<{
+export default function ExtractedDataDisplay({ data }: ExtractedDataDisplayProps) {
+  const [localSaveStatus] = useState<{
     saved: boolean;
     error?: string;
     id?: string;
@@ -34,31 +32,6 @@ export default function ExtractedDataDisplay({ data, showSaveButton = false }: E
       maximumFractionDigits: 2,
     }).format(num);
     return `${currencyCode || 'USD'} ${formatted}`;
-  };
-
-  const copyAll = () => {
-    navigator.clipboard.writeText(JSON.stringify(data, null, 2));
-    toast.success('All data copied to clipboard');
-  };
-
-  const handleRetrySave = async () => {
-    try {
-      setIsSaving(true);
-      const loadingToast = toast.loading('Retrying save to database...');
-      const response = await saveInvoice(data);
-      toast.dismiss(loadingToast);
-      toast.success('Successfully saved to database!');
-      setLocalSaveStatus({
-        saved: true,
-        id: response.invoice_id
-      });
-    } catch (err: any) {
-      const msg = err.message || 'Failed to save invoice';
-      toast.error(msg);
-      setLocalSaveStatus(prev => ({ ...prev, error: msg }));
-    } finally {
-      setIsSaving(false);
-    }
   };
 
   const CopyBtn = ({ text }: { text: string | number | null | undefined }) => {
@@ -102,28 +75,6 @@ export default function ExtractedDataDisplay({ data, showSaveButton = false }: E
               <span>SAVE FAILED</span>
             </span>
           ) : null}
-        </div>
-
-        <div className="flex space-x-3 w-full sm:w-auto">
-          <button 
-            onClick={copyAll}
-            className="flex items-center justify-center space-x-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm font-medium flex-1 sm:flex-initial"
-          >
-            <Copy size={16} />
-            <span>Copy JSON</span>
-          </button>
-          
-          {/* Show Retry button if failed, instead of always showing Save button */}
-          {!localSaveStatus.saved && (
-            <button 
-              onClick={handleRetrySave}
-              disabled={isSaving}
-              className={`flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium shadow-sm flex-1 sm:flex-initial ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}
-            >
-              {isSaving ? <RotateCw size={16} className="animate-spin" /> : <Save size={16} />}
-              <span>{localSaveStatus.error ? 'Retry Save' : 'Save to Database'}</span>
-            </button>
-          )}
         </div>
       </div>
 
