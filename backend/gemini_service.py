@@ -20,7 +20,7 @@ def extract_invoice_data(file_bytes: bytes = None, filename: str = None, text: s
     - Checks cache first.
     - If miss, runs the LangGraph workflow.
     - Caches the result.
-    - Returns structured data.
+    - Returns structured data with extraction details.
     """
     if not file_bytes:
         logger.warning("extract_invoice_data called without file_bytes. This may bypass caching.")
@@ -32,9 +32,7 @@ def extract_invoice_data(file_bytes: bytes = None, filename: str = None, text: s
     
     if cached_entry:
         logger.info(f"Returning cached result for {filename}")
-        # When hitting cache, we "save" the tokens that would have been used
-        # We retrieve the token count from the cache entry
-        tokens_saved = cached_entry.get("estimated_tokens", 500) # Default if missing
+        tokens_saved = cached_entry.get("estimated_tokens", 500)
         cache_service.tokens_saved += tokens_saved
         return cached_entry.get("data")
 
@@ -42,15 +40,25 @@ def extract_invoice_data(file_bytes: bytes = None, filename: str = None, text: s
     logger.info(f"Cache miss for {filename}. Running LangGraph workflow...")
     result = run_invoice_workflow(file_bytes, filename)
     
-    extracted_data = result.get("extracted_data")
+    extracted_data = result.get("extracted_data", {})
+    ai_skipped = result.get("ai_skipped", False)
+    extraction_method = result.get("extraction_method", "ai_only")
     
-    # Estimate tokens used for this request
-    # Prompt (~200) + Cleaned Text
-    cleaned_text = result.get("cleaned_text", "")
-    text_tokens = estimate_tokens(cleaned_text)
-    total_estimated_tokens = 200 + text_tokens
+    # Add extraction info to the data
+    extracted_data["ai_skipped"] = ai_skipped
+    extracted_data["extraction_method"] = extraction_method
     
-    # 3. Cache the result along with token estimate
+    # 3. Token estimation
+    if ai_skipped:
+        total_estimated_tokens = 0
+        logger.info("AI skipped. 0 tokens used.")
+    else:
+        # Estimate tokens used for this request
+        cleaned_text = result.get("cleaned_text", "")
+        text_tokens = estimate_tokens(cleaned_text)
+        total_estimated_tokens = 200 + text_tokens
+    
+    # 4. Cache the result
     if extracted_data:
         cache_entry = {
             "data": extracted_data,

@@ -11,6 +11,11 @@ class InvoiceCache:
         self.hits = 0
         self.misses = 0
         self.tokens_saved = 0
+        
+        # Detailed stats
+        self.regex_only_count = 0
+        self.regex_plus_ai_count = 0
+        self.ai_only_count = 0
 
     def hash_file(self, file_bytes: bytes) -> str:
         """Generate SHA256 hash of file"""
@@ -35,6 +40,16 @@ class InvoiceCache:
         
         self.cache[file_hash] = data
         
+        # Track method stats from the data (if it's a miss, gemini_service calls this)
+        inner_data = data.get("data", {})
+        method = inner_data.get("extraction_method")
+        if method == "regex_only":
+            self.regex_only_count += 1
+        elif method == "regex_plus_ai":
+            self.regex_plus_ai_count += 1
+        elif method == "ai_only":
+            self.ai_only_count += 1
+        
         if len(self.cache) > self.max_size:
             # Remove the oldest item (first item in OrderedDict)
             self.cache.popitem(last=False)
@@ -42,10 +57,13 @@ class InvoiceCache:
 
     def get_stats(self):
         return {
-            "hits": self.hits,
-            "misses": self.misses,
             "total_processed": self.hits + self.misses,
-            "tokens_saved": self.tokens_saved
+            "cache_hits": self.hits,
+            "cache_misses": self.misses,
+            "regex_only": self.regex_only_count,
+            "regex_plus_ai": self.regex_plus_ai_count,
+            "ai_only": self.ai_only_count,
+            "estimated_tokens_saved": self.tokens_saved
         }
 
 # Singleton instance

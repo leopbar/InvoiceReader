@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from backend.schemas import InvoiceData
 from backend.text_preprocessor import clean_text, truncate_if_needed
 from backend.file_processor import process_file
+from backend.regex_extractor import extract_with_regex
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,10 @@ class GraphState(TypedDict):
     cleaned_text: str
     image_base64: str
     extracted_data: Dict[str, Any]
+    regex_data: Dict[str, Any]
+    regex_confidence: float
+    ai_skipped: bool
+    extraction_method: str # regex_only, regex_plus_ai, ai_only
     is_valid: bool
     error: str
     retry_count: int
@@ -33,6 +38,11 @@ def classify_node(state: GraphState) -> GraphState:
     logger.info(f"Node: classify | File: {state['filename']}")
     ext = state["filename"].split('.')[-1].lower() if '.' in state["filename"] else ''
     state["file_type"] = ext
+    # Default extraction method
+    if ext in ['png', 'jpg', 'jpeg']:
+        state["extraction_method"] = "ai_only"
+    else:
+        state["extraction_method"] = "regex_only"
     return state
 
 def extract_text_node(state: GraphState) -> GraphState:
@@ -49,6 +59,33 @@ def preprocess_node(state: GraphState) -> GraphState:
         state["cleaned_text"] = truncate_if_needed(state["cleaned_text"])
     return state
 
+def regex_extract_node(state: GraphState) -> GraphState:
+    """
+    Tries to extract data using regex logic.
+    Only applicable for text-based files.
+    """
+    if state["image_base64"] or not state["cleaned_text"]:
+        state["regex_confidence"] = 0.0
+        state["ai_skipped"] = False
+        return state
+    
+    logger.info("Node: regex_extract")
+    regex_result = extract_with_regex(state["cleaned_text"])
+    
+    state["regex_data"] = regex_result["extracted_data"]
+    state["regex_confidence"] = regex_result["confidence_score"]
+    
+    if state["regex_confidence"] >= 0.75:
+        logger.info("Regex extraction sufficient — AI skipped, 0 tokens used")
+        state["ai_skipped"] = True
+        state["extracted_data"] = state["regex_data"]
+    else:
+        logger.info(f"Regex confidence low ({state['regex_confidence']}). Proceeding to AI.")
+        state["ai_skipped"] = False
+        state["extraction_method"] = "regex_plus_ai"
+        
+    return state
+
 def extract_invoice_node(state: GraphState) -> GraphState:
     logger.info(f"Node: extract_invoice | Retry: {state['retry_count']}")
     
@@ -61,8 +98,21 @@ def extract_invoice_node(state: GraphState) -> GraphState:
     
     structured_llm = llm.with_structured_output(InvoiceData)
     
+    # Base prompt
     prompt = "Extract all invoice data from this document. Return structured data matching the schema exactly. Use null for missing fields. Dates in YYYY-MM-DD format. Numbers without currency symbols."
     
+    # Optimization if regex already found some data
+    if state.get("regex_data") and not state["ai_skipped"]:
+        found_data = state["regex_data"]
+        missing = [f for f, v in [
+            ("invoice_number", found_data["invoice_info"]["invoice_number"]),
+            ("invoice_date", found_data["invoice_info"]["invoice_date"]),
+            ("supplier_name", found_data["supplier"]["name"]),
+            ("total_amount", found_data["totals"]["total_amount"])
+        ] if v is None]
+        
+        prompt = f"Extract invoice data. Some fields were already partially extracted via regex. Verify these and fill in the missing ones: {', '.join(missing) if missing else 'all fields'}. Already found partial data: {found_data}. Return the full structured data matching the schema."
+
     content = []
     content.append({"type": "text", "text": prompt})
     
@@ -84,12 +134,11 @@ def extract_invoice_node(state: GraphState) -> GraphState:
 
     try:
         response = structured_llm.invoke([HumanMessage(content=content)])
-        # response is an InvoiceData object
         state["extracted_data"] = response.model_dump()
     except Exception as e:
         logger.error(f"Error in extraction: {str(e)}")
         state["error"] = str(e)
-        state["extracted_data"] = {}
+        state["extracted_data"] = state.get("regex_data", {}) # Fallback to regex if available
         
     return state
 
@@ -103,7 +152,7 @@ def validate_node(state: GraphState) -> GraphState:
 
     missing_fields = []
     
-    # Check critical fields as requested
+    # Check critical fields
     invoice_info = data.get("invoice_info") or {}
     totals = data.get("totals") or {}
     supplier = data.get("supplier") or {}
@@ -131,6 +180,7 @@ def validate_node(state: GraphState) -> GraphState:
 def retry_node(state: GraphState) -> GraphState:
     logger.info(f"Node: retry | Current count: {state['retry_count']}")
     state["retry_count"] += 1
+    state["extraction_method"] = "regex_plus_ai" # Mark as using AI if we retry
     return state
 
 def decide_next_node(state: GraphState) -> str:
@@ -141,11 +191,17 @@ def decide_next_node(state: GraphState) -> str:
     logger.error("Max retries reached. Returning partial data.")
     return END
 
+def decide_regex_logic(state: GraphState) -> str:
+    if state["ai_skipped"]:
+        return "validate"
+    return "extract_invoice"
+
 # Build Graph
 builder = StateGraph(GraphState)
 builder.add_node("classify", classify_node)
 builder.add_node("extract_text", extract_text_node)
 builder.add_node("preprocess", preprocess_node)
+builder.add_node("regex_extract", regex_extract_node)
 builder.add_node("extract_invoice", extract_invoice_node)
 builder.add_node("validate", validate_node)
 builder.add_node("retry", retry_node)
@@ -153,7 +209,17 @@ builder.add_node("retry", retry_node)
 builder.add_edge(START, "classify")
 builder.add_edge("classify", "extract_text")
 builder.add_edge("extract_text", "preprocess")
-builder.add_edge("preprocess", "extract_invoice")
+builder.add_edge("preprocess", "regex_extract")
+
+builder.add_conditional_edges(
+    "regex_extract",
+    decide_regex_logic,
+    {
+        "validate": "validate",
+        "extract_invoice": "extract_invoice"
+    }
+)
+
 builder.add_edge("extract_invoice", "validate")
 
 builder.add_conditional_edges(
@@ -178,6 +244,10 @@ def run_invoice_workflow(file_bytes: bytes, filename: str):
         "cleaned_text": "",
         "image_base64": "",
         "extracted_data": {},
+        "regex_data": {},
+        "regex_confidence": 0.0,
+        "ai_skipped": False,
+        "extraction_method": "ai_only",
         "is_valid": False,
         "error": "",
         "retry_count": 0
