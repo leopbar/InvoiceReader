@@ -54,7 +54,7 @@ def extract_invoice_node(state: GraphState) -> GraphState:
     
     # Use the model requested by the user
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash",
+        model="gemini-3-flash-preview",
         temperature=0,
         google_api_key=os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     )
