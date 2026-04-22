@@ -1,3 +1,0 @@
-INVOICE
-Supplier: Test Supplier Inc.
-Total: $500.00

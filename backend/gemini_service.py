@@ -1,15 +1,20 @@
 import os
 import json
 import google.generativeai as genai
+from openai import OpenAI
 from dotenv import load_dotenv
 
 env_path = os.path.join(os.path.dirname(__file__), ".env")
 load_dotenv(dotenv_path=env_path)
 
-# Configure API key
-api_key = os.environ.get("GEMINI_API_KEY")
-if api_key:
-    genai.configure(api_key=api_key)
+# Configure Gemini API key
+gemini_api_key = os.environ.get("GEMINI_API_KEY")
+if gemini_api_key:
+    genai.configure(api_key=gemini_api_key)
+
+# Configure OpenAI client
+openai_api_key = os.environ.get("OPENAI_API_KEY")
+client = OpenAI(api_key=openai_api_key) if openai_api_key else None
 
 PROMPT = """
 You are an expert invoice data extraction AI. Analyze the following invoice content and extract ALL data into a structured JSON format.
@@ -76,37 +81,92 @@ Invoice content to analyze:
 """
 
 def extract_invoice_data(text=None, image_base64=None):
+    """
+    Tries to extract data using Gemini. If it fails (quota, error, etc.), 
+    falls back to OpenAI if configured.
+    """
     try:
-        model = genai.GenerativeModel("gemini-3-flash-preview")
+        print("Attempting extraction with Gemini...")
+        return extract_with_gemini(text, image_base64)
+    except Exception as gemini_err:
+        print(f"Gemini extraction failed: {str(gemini_err)}")
         
-        contents = [PROMPT]
-        
-        if text:
-            contents.append(text)
-            
-        if image_base64:
-            contents.append(
-                {"mime_type": "image/jpeg", "data": image_base64}
-            )
-            
-        response = model.generate_content(contents)
-        
-        response_text = response.text.strip()
-        print(f"Raw Model Response Length: {len(response_text)}")
-        
-        # Find the first '{' and the last '}' to extract the JSON dictionary block
-        start_idx = response_text.find('{')
-        end_idx = response_text.rfind('}')
-        
-        if start_idx != -1 and end_idx != -1 and end_idx >= start_idx:
-            json_str = response_text[start_idx:end_idx+1]
+        if client:
             try:
-                parsed_json = json.loads(json_str)
-                return parsed_json
-            except json.JSONDecodeError as de:
-                raise Exception(f"AI returned improperly formatted JSON. Parse error: {str(de)}")
+                print("Falling back to OpenAI...")
+                return extract_with_openai(text, image_base64)
+            except Exception as openai_err:
+                print(f"OpenAI fallback failed: {str(openai_err)}")
+                raise Exception(f"Both AI models failed. Gemini error: {str(gemini_err)}. OpenAI error: {str(openai_err)}")
         else:
-            raise Exception("The AI model did not return any JSON object.")
-    except Exception as e:
-        print(f"Error extracting data with Gemini: {str(e)}")
-        raise e
+            print("OpenAI is not configured as fallback.")
+            raise gemini_err
+
+def extract_with_gemini(text=None, image_base64=None):
+    model = genai.GenerativeModel("gemini-3-flash-preview")
+    
+    contents = [PROMPT]
+    
+    if text:
+        contents.append(text)
+        
+    if image_base64:
+        contents.append(
+            {"mime_type": "image/jpeg", "data": image_base64}
+        )
+        
+    response = model.generate_content(contents)
+    
+    response_text = response.text.strip()
+    return parse_json_response(response_text)
+
+def extract_with_openai(text=None, image_base64=None):
+    if not client:
+        raise Exception("OpenAI client not initialized")
+    
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": PROMPT}
+            ]
+        }
+    ]
+    
+    if text:
+        messages[0]["content"].append({"type": "text", "text": f"Text content: {text}"})
+        
+    if image_base64:
+        # OpenAI expects base64 in a specific URL format
+        image_url = f"data:image/jpeg;base64,{image_base64}"
+        messages[0]["content"].append({
+            "type": "image_url",
+            "image_url": {"url": image_url}
+        })
+        
+    response = client.chat.completions.create(
+        model="gpt-4o", # Using gpt-4o for best results with vision
+        messages=messages,
+        max_tokens=2000,
+        response_format={"type": "json_object"}
+    )
+    
+    response_text = response.choices[0].message.content.strip()
+    return parse_json_response(response_text)
+
+def parse_json_response(response_text):
+    print(f"Raw Model Response Length: {len(response_text)}")
+    
+    # Find the first '{' and the last '}' to extract the JSON dictionary block
+    start_idx = response_text.find('{')
+    end_idx = response_text.rfind('}')
+    
+    if start_idx != -1 and end_idx != -1 and end_idx >= start_idx:
+        json_str = response_text[start_idx:end_idx+1]
+        try:
+            parsed_json = json.loads(json_str)
+            return parsed_json
+        except json.JSONDecodeError as de:
+            raise Exception(f"AI returned improperly formatted JSON. Parse error: {str(de)}")
+    else:
+        raise Exception("The AI model did not return any JSON object.")

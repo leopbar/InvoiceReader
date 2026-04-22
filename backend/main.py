@@ -22,17 +22,32 @@ if environment == "production":
 else:
     app = FastAPI(title="Invoice Reader API")
 
-# CORS: load allowed origins from env, fallback to localhost for dev
-_cors_origins_raw = os.environ.get("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
-CORS_ORIGINS = [origin.strip() for origin in _cors_origins_raw.split(",") if origin.strip()]
+# CORS: broaden origins for local development
+_cors_origins_raw = os.environ.get("CORS_ORIGINS", "*")
+if _cors_origins_raw == "*":
+    CORS_ORIGINS = ["*"]
+else:
+    CORS_ORIGINS = [origin.strip() for origin in _cors_origins_raw.split(",") if origin.strip()]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=True if CORS_ORIGINS != ["*"] else False, # Credentials cannot be used with "*"
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Debug middleware to log all requests
+@app.middleware("http")
+async def log_requests(request, call_next):
+    print(f"Incoming request: {request.method} {request.url.path}")
+    try:
+        response = await call_next(request)
+        print(f"Response status: {response.status_code}")
+        return response
+    except Exception as e:
+        print(f"Request failed: {str(e)}")
+        raise e
 
 # Max upload size: 10 MB
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024
@@ -252,5 +267,5 @@ if __name__ == "__main__":
     import os
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
-    host = os.environ.get("HOST", "0.0.0.0")
+    host = os.environ.get("HOST", "127.0.0.1")
     uvicorn.run("backend.main:app", host=host, port=port, reload=False)
