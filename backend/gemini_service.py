@@ -33,7 +33,7 @@ def extract_invoice_data(file_bytes: bytes = None, filename: str = None, text: s
     if cached_entry:
         logger.info(f"Returning cached result for {filename}")
         tokens_saved = cached_entry.get("estimated_tokens", 500)
-        cache_service.tokens_saved += tokens_saved
+        cache_service.add_tokens_saved(tokens_saved)
         return cached_entry.get("data")
 
     # 2. Run LangGraph workflow
@@ -53,7 +53,7 @@ def extract_invoice_data(file_bytes: bytes = None, filename: str = None, text: s
         # We saved what would have been used if we didn't have regex
         cleaned_text = result.get("cleaned_text", "")
         saved_count = 200 + estimate_tokens(cleaned_text)
-        cache_service.tokens_saved += saved_count
+        cache_service.add_tokens_saved(saved_count)
         total_estimated_tokens = 0
         logger.info(f"AI skipped. {saved_count} tokens saved by regex.")
     else:

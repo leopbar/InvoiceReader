@@ -83,3 +83,22 @@ def save_invoice(data: dict) -> str:
         supabase.table("invoice_addresses").insert(addresses).execute()
         
     return invoice_id
+
+def get_processing_stats() -> dict:
+    """Fetch the global processing stats from the database."""
+    try:
+        res = supabase.table("processing_stats").select("*").eq("id", "global").execute()
+        if res.data and len(res.data) > 0:
+            return res.data[0]
+    except Exception:
+        pass
+    return None
+
+def update_processing_stats(stats: dict):
+    """Upsert the global processing stats into the database."""
+    try:
+        stats["id"] = "global"
+        supabase.table("processing_stats").upsert(stats).execute()
+    except Exception:
+        # If table doesn't exist yet or other error, just ignore
+        pass
