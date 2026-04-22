@@ -1,4 +1,5 @@
 import os
+import base64
 import logging
 from typing import TypedDict, Optional, List, Dict, Any
 from langgraph.graph import StateGraph, START, END
@@ -121,8 +122,16 @@ def extract_invoice_node(state: GraphState) -> GraphState:
     content = []
     content.append({"type": "text", "text": prompt})
     
-    if state["image_base64"]:
-        # Vision extraction
+    if state["file_type"] == "pdf":
+        # Pass PDF natively to Gemini
+        pdf_b64 = base64.b64encode(state["file_bytes"]).decode("utf-8")
+        content.append({
+            "type": "image_url", # LangChain uses image_url for any media bytes for Gemini
+            "image_url": f"data:application/pdf;base64,{pdf_b64}"
+        })
+        logger.info("Passing PDF natively to Gemini")
+    elif state["image_base64"]:
+        # Vision extraction (PNG, JPG)
         mime_type = f"image/{state['file_type']}"
         if state['file_type'] == 'jpg': mime_type = "image/jpeg"
         
@@ -130,9 +139,13 @@ def extract_invoice_node(state: GraphState) -> GraphState:
             "type": "image_url",
             "image_url": f"data:{mime_type};base64,{state['image_base64']}"
         })
+        logger.info(f"Passing image ({state['file_type']}) to Gemini")
     elif state["cleaned_text"]:
-        # Text extraction
+        # Text extraction (fallback or text-based files)
         content.append({"type": "text", "text": f"Document Content:\n{state['cleaned_text']}"})
+        logger.info("Passing cleaned text to Gemini")
+    else:
+        logger.warning("No text or image found for extraction!")
     
     if state["retry_count"] > 0:
         content.append({"type": "text", "text": f"\nIMPORTANT: This is a retry attempt {state['retry_count']}. Please ensure you extract the following missing or incorrect fields accurately: {state['error']}"})
