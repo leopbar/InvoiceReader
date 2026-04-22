@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { Receipt, Archive, Upload, Users, LogOut, Loader2, BarChart3 } from 'lucide-react';
+import { Receipt, Archive, Upload, Users, LogOut, Loader2 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 import UploadPage from './pages/UploadPage';
@@ -9,7 +9,6 @@ import HistoryPage from './pages/HistoryPage';
 import InvoiceDetailPage from './pages/InvoiceDetailPage';
 import LoginPage from './pages/LoginPage';
 import UserManagementPage from './pages/UserManagementPage';
-import StatsPage from './pages/StatsPage';
 
 function Navigation() {
   const location = useLocation();
@@ -45,15 +44,6 @@ function Navigation() {
             >
               <Archive size={18} />
               <span>History</span>
-            </Link>
-            <Link 
-              to="/stats" 
-              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                path.startsWith('/stats') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
-              }`}
-            >
-              <BarChart3 size={18} />
-              <span>Stats</span>
             </Link>
 
             {isAdmin && (
@@ -111,7 +101,6 @@ function PrivateApp() {
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/invoice/:id" element={<InvoiceDetailPage />} />
           <Route path="/users" element={<UserManagementPage />} />
-          <Route path="/stats" element={<StatsPage />} />
         </Routes>
       </main>
     </div>

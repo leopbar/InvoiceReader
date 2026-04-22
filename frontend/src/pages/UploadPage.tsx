@@ -19,11 +19,6 @@ export default function UploadPage() {
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
     
-    if (acceptedFiles.length > 10) {
-      toast.error('Maximum 10 files allowed at once.');
-      return;
-    }
-    
     setIsUploading(true);
     
     // Initialize results array with processing status
@@ -44,12 +39,6 @@ export default function UploadPage() {
           newResults[index] = { ...newResults[index], status: 'success', data };
           return newResults;
         });
-        
-        if (data.saved) {
-          toast.success(`${file.name}: Extracted and saved!`);
-        } else {
-          toast.success(`${file.name}: Extracted (Save pending)`);
-        }
       } catch (error: any) {
         setFileResults(prev => {
           const newResults = [...prev];
@@ -61,10 +50,8 @@ export default function UploadPage() {
       }
     };
 
-    // Process files sequentially to avoid rate limiting and ensure reliability
-    for (let i = 0; i < acceptedFiles.length; i++) {
-      await processFile(acceptedFiles[i], i);
-    }
+    // Process all files async
+    await Promise.all(acceptedFiles.map((file, i) => processFile(file, i)));
     
     setIsUploading(false);
     toast.success('Batch processing complete!');
@@ -79,8 +66,7 @@ export default function UploadPage() {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
       'application/msword': ['.doc'],
       'text/plain': ['.txt']
-    },
-    maxFiles: 10
+    }
   });
 
   const handleClear = () => {
@@ -91,7 +77,7 @@ export default function UploadPage() {
     <div className="max-w-5xl mx-auto space-y-8">
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold text-gray-900">Upload Invoices</h1>
-        <p className="text-gray-500">Let our AI instantly extract details from up to 10 invoices at once.</p>
+        <p className="text-gray-500">Let our AI instantly extract details from one or multiple invoices in sequence.</p>
       </div>
 
       {fileResults.length === 0 && (
@@ -109,7 +95,7 @@ export default function UploadPage() {
             
             <div>
               <p className="text-lg font-medium text-gray-700">
-                {isDragActive ? 'Drop your invoices here...' : 'Drag & drop up to 10 invoices here'}
+                {isDragActive ? 'Drop your invoices here...' : 'Drag & drop multiple invoices here'}
               </p>
               <p className="text-sm text-gray-500 mt-1">or click to browse from your computer</p>
             </div>
@@ -172,7 +158,7 @@ export default function UploadPage() {
             
             <div className="p-6">
               {result.status === 'success' && result.data && (
-                  <ExtractedDataDisplay data={result.data} />
+                  <ExtractedDataDisplay data={result.data} showSaveButton={true} />
               )}
             </div>
           </div>

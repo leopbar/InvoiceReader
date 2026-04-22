@@ -1,37 +1,34 @@
-import React, { useState } from 'react';
-import { Copy, CheckCircle, Save, AlertCircle, RotateCw } from 'lucide-react';
+import React from 'react';
+import { Copy, CheckCircle, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { saveInvoice } from '../services/api';
 
 interface ExtractedDataDisplayProps {
   data: any;
+  showSaveButton?: boolean;
 }
 
-export default function ExtractedDataDisplay({ data }: ExtractedDataDisplayProps) {
-  const [localSaveStatus] = useState<{
-    saved: boolean;
-    error?: string;
-    id?: string;
-  }>({
-    saved: data.saved || false,
-    error: data.save_error,
-    id: data.invoice_id
-  });
-
+export default function ExtractedDataDisplay({ data, showSaveButton = false }: ExtractedDataDisplayProps) {
   const copyToClipboard = (text: string) => {
     if (!text) return;
     navigator.clipboard.writeText(String(text));
     toast.success('Copied to clipboard');
   };
 
-  const formatCurrency = (amount: any, currencyCode: string = 'USD') => {
-    if (amount === null || amount === undefined || amount === '') return '-';
-    const num = Number(amount);
-    const formatted = new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(num);
-    return `${currencyCode || 'USD'} ${formatted}`;
+  const copyAll = () => {
+    navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+    toast.success('All data copied to clipboard');
+  };
+
+  const handleSave = async () => {
+    try {
+      const loadingToast = toast.loading('Saving to database...');
+      await saveInvoice(data);
+      toast.dismiss(loadingToast);
+      toast.success('Successfully saved to database!');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save invoice');
+    }
   };
 
   const CopyBtn = ({ text }: { text: string | number | null | undefined }) => {
@@ -59,22 +56,26 @@ export default function ExtractedDataDisplay({ data }: ExtractedDataDisplayProps
 
   return (
     <div className="w-full space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-        <div className="flex items-center space-x-3">
-          <h2 className="text-xl font-bold text-gray-800">Extracted Invoice Data</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold text-gray-800">Extracted Invoice Data</h2>
+        <div className="flex space-x-3">
+          <button 
+            onClick={copyAll}
+            className="flex items-center space-x-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm font-medium"
+          >
+            <Copy size={16} />
+            <span>Copy JSON</span>
+          </button>
           
-          {/* Save Status Badge */}
-          {localSaveStatus.saved ? (
-            <span className="flex items-center space-x-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full border border-green-200">
-              <CheckCircle size={12} />
-              <span>SAVED</span>
-            </span>
-          ) : localSaveStatus.error ? (
-            <span className="flex items-center space-x-1 px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full border border-red-200">
-              <AlertCircle size={12} />
-              <span>SAVE FAILED</span>
-            </span>
-          ) : null}
+          {showSaveButton && (
+            <button 
+              onClick={handleSave}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium shadow-sm"
+            >
+              <Save size={16} />
+              <span>Save to Database</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -146,8 +147,8 @@ export default function ExtractedDataDisplay({ data }: ExtractedDataDisplayProps
                 <td className="px-4 py-3">{item.item_code || '-'}</td>
                 <td className="px-4 py-3">{item.quantity}</td>
                 <td className="px-4 py-3">{item.unit || '-'}</td>
-                <td className="px-4 py-3">{formatCurrency(item.unit_price, data.invoice_info?.currency)}</td>
-                <td className="px-4 py-3 font-semibold">{formatCurrency(item.total_price, data.invoice_info?.currency)}</td>
+                <td className="px-4 py-3">{item.unit_price}</td>
+                <td className="px-4 py-3 font-semibold">{item.total_price}</td>
               </tr>
             ))}
             {(!data.line_items || data.line_items.length === 0) && (
@@ -169,15 +170,15 @@ export default function ExtractedDataDisplay({ data }: ExtractedDataDisplayProps
         {/* Totals */}
         <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
           <h3 className="text-base font-semibold text-gray-800 mb-4 border-b pb-2">Totals</h3>
-          <FieldRow label="Subtotal" value={formatCurrency(data.totals?.subtotal, data.invoice_info?.currency)} />
-          <FieldRow label="Tax Amount" value={formatCurrency(data.totals?.tax_amount, data.invoice_info?.currency)} />
-          <FieldRow label="Discount" value={formatCurrency(data.totals?.discount, data.invoice_info?.currency)} />
+          <FieldRow label="Subtotal" value={data.totals?.subtotal} />
+          <FieldRow label="Tax Amount" value={data.totals?.tax_amount} />
+          <FieldRow label="Discount" value={data.totals?.discount} />
           
           <div className="flex justify-between items-center py-4 mt-2 border-t-2 border-gray-100">
             <span className="text-gray-800 font-bold text-lg">Total Amount</span>
             <div className="flex items-center">
               <span className="text-blue-600 font-bold text-2xl">
-                 {formatCurrency(data.totals?.total_amount, data.invoice_info?.currency)}
+                 {data.invoice_info?.currency} {data.totals?.total_amount}
               </span>
               <CopyBtn text={data.totals?.total_amount} />
             </div>

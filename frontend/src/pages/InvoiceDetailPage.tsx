@@ -85,7 +85,7 @@ export default function InvoiceDetailPage() {
         <span>Back to History</span>
       </button>
       
-      <ExtractedDataDisplay data={data} />
+      <ExtractedDataDisplay data={data} showSaveButton={false} />
     </div>
   );
 }

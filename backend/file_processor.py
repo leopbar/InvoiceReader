@@ -24,7 +24,7 @@ def process_file(file_bytes: bytes, filename: str) -> dict:
             if text.strip():
                 result["text"] = text
             else:
-                result["text"] = ""
+                result["text"] = "OCR Needed (Scanned PDF)"
         except Exception as e:
             result["text"] = f"Error reading PDF: {e}"
             

@@ -399,14 +399,12 @@ export default function HistoryPage() {
                       // Custom rendering for specifics
                       let displayVal = val || '-';
                       
-                      // Format currency for certain fields: "CODE 1,234.56"
+                      // Format currency for certain fields
                       if (['total_amount', 'subtotal', 'tax_amount', 'discount'].includes(col.id) && val !== null && val !== undefined) {
-                        const amount = Number(val);
-                        const formatted = new Intl.NumberFormat('en-US', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        }).format(amount);
-                        displayVal = `${inv.currency || 'USD'} ${formatted}`;
+                        displayVal = new Intl.NumberFormat('en-US', {
+                          style: 'currency',
+                          currency: inv.currency || 'USD'
+                        }).format(Number(val));
                       }
 
                       if (col.id === 'status') {

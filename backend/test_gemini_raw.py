@@ -13,8 +13,8 @@ PROMPT = """You are an expert invoice data extraction AI. Analyze the following 
 """
 
 try:
-    print("Initializing model gemini-3-flash-preview...")
-    model = genai.GenerativeModel("gemini-3-flash-preview")
+    print("Initializing model gemma-4-26b-a4b-it...")
+    model = genai.GenerativeModel("gemma-4-26b-a4b-it")
     response = model.generate_content([PROMPT, "Invoice content: INVOICE from Test Co."])
     print("Response text:")
     print(repr(response.text))
