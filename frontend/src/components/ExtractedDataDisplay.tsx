@@ -1,5 +1,5 @@
-import React from 'react';
-import { Copy, CheckCircle, Save } from 'lucide-react';
+import React, { useState } from 'react';
+import { Copy, CheckCircle, Save, AlertCircle, RotateCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { saveInvoice } from '../services/api';
 
@@ -9,6 +9,17 @@ interface ExtractedDataDisplayProps {
 }
 
 export default function ExtractedDataDisplay({ data, showSaveButton = false }: ExtractedDataDisplayProps) {
+  const [isSaving, setIsSaving] = useState(false);
+  const [localSaveStatus, setLocalSaveStatus] = useState<{
+    saved: boolean;
+    error?: string;
+    id?: string;
+  }>({
+    saved: data.saved || false,
+    error: data.save_error,
+    id: data.invoice_id
+  });
+
   const copyToClipboard = (text: string) => {
     if (!text) return;
     navigator.clipboard.writeText(String(text));
@@ -20,14 +31,23 @@ export default function ExtractedDataDisplay({ data, showSaveButton = false }: E
     toast.success('All data copied to clipboard');
   };
 
-  const handleSave = async () => {
+  const handleRetrySave = async () => {
     try {
-      const loadingToast = toast.loading('Saving to database...');
-      await saveInvoice(data);
+      setIsSaving(true);
+      const loadingToast = toast.loading('Retrying save to database...');
+      const response = await saveInvoice(data);
       toast.dismiss(loadingToast);
       toast.success('Successfully saved to database!');
+      setLocalSaveStatus({
+        saved: true,
+        id: response.invoice_id
+      });
     } catch (err: any) {
-      toast.error(err.message || 'Failed to save invoice');
+      const msg = err.message || 'Failed to save invoice';
+      toast.error(msg);
+      setLocalSaveStatus(prev => ({ ...prev, error: msg }));
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -56,24 +76,42 @@ export default function ExtractedDataDisplay({ data, showSaveButton = false }: E
 
   return (
     <div className="w-full space-y-6">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-gray-800">Extracted Invoice Data</h2>
-        <div className="flex space-x-3">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+        <div className="flex items-center space-x-3">
+          <h2 className="text-xl font-bold text-gray-800">Extracted Invoice Data</h2>
+          
+          {/* Save Status Badge */}
+          {localSaveStatus.saved ? (
+            <span className="flex items-center space-x-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full border border-green-200">
+              <CheckCircle size={12} />
+              <span>SAVED</span>
+            </span>
+          ) : localSaveStatus.error ? (
+            <span className="flex items-center space-x-1 px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full border border-red-200">
+              <AlertCircle size={12} />
+              <span>SAVE FAILED</span>
+            </span>
+          ) : null}
+        </div>
+
+        <div className="flex space-x-3 w-full sm:w-auto">
           <button 
             onClick={copyAll}
-            className="flex items-center space-x-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm font-medium"
+            className="flex items-center justify-center space-x-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm font-medium flex-1 sm:flex-initial"
           >
             <Copy size={16} />
             <span>Copy JSON</span>
           </button>
           
-          {showSaveButton && (
+          {/* Show Retry button if failed, instead of always showing Save button */}
+          {!localSaveStatus.saved && (
             <button 
-              onClick={handleSave}
-              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium shadow-sm"
+              onClick={handleRetrySave}
+              disabled={isSaving}
+              className={`flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium shadow-sm flex-1 sm:flex-initial ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}
             >
-              <Save size={16} />
-              <span>Save to Database</span>
+              {isSaving ? <RotateCw size={16} className="animate-spin" /> : <Save size={16} />}
+              <span>{localSaveStatus.error ? 'Retry Save' : 'Save to Database'}</span>
             </button>
           )}
         </div>

@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 # Absolute imports to be consistent with main.py
 from backend.schemas import InvoiceData
-from backend.text_preprocessor import clean_text, truncate_if_needed
+from backend.text_preprocessor import clean_text, truncate_if_needed, normalize_amount
 from backend.file_processor import process_file
 from backend.regex_extractor import extract_with_regex
 
@@ -98,8 +98,13 @@ def extract_invoice_node(state: GraphState) -> GraphState:
     
     structured_llm = llm.with_structured_output(InvoiceData)
     
-    # Base prompt
-    prompt = "Extract all invoice data from this document. Return structured data matching the schema exactly. Use null for missing fields. Dates in YYYY-MM-DD format. Numbers without currency symbols."
+    # Base prompt with strict monetary formatting instructions
+    prompt = (
+        "Extract all invoice data from this document. Return structured data matching the schema exactly. "
+        "Use null for missing fields. Dates in YYYY-MM-DD format. "
+        "IMPORTANT: For all monetary values, return plain numbers with a dot as decimal separator and no thousands separator. "
+        "Examples: 1234.56 (correct), 1.234,56 (wrong), $1,234.56 (wrong). Just the number: 1234.56"
+    )
     
     # Optimization if regex already found some data
     if state.get("regex_data") and not state["ai_skipped"]:
@@ -134,7 +139,21 @@ def extract_invoice_node(state: GraphState) -> GraphState:
 
     try:
         response = structured_llm.invoke([HumanMessage(content=content)])
-        state["extracted_data"] = response.model_dump()
+        raw_data = response.model_dump()
+        
+        # Normalize all monetary values in the response
+        if raw_data.get("totals"):
+            raw_data["totals"]["subtotal"] = normalize_amount(raw_data["totals"].get("subtotal"))
+            raw_data["totals"]["tax_amount"] = normalize_amount(raw_data["totals"].get("tax_amount"))
+            raw_data["totals"]["discount"] = normalize_amount(raw_data["totals"].get("discount"))
+            raw_data["totals"]["total_amount"] = normalize_amount(raw_data["totals"].get("total_amount"))
+        
+        if raw_data.get("line_items"):
+            for item in raw_data["line_items"]:
+                item["unit_price"] = normalize_amount(item.get("unit_price"))
+                item["total_price"] = normalize_amount(item.get("total_price"))
+        
+        state["extracted_data"] = raw_data
     except Exception as e:
         logger.error(f"Error in extraction: {str(e)}")
         state["error"] = str(e)

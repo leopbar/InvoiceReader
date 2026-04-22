@@ -119,6 +119,19 @@ async def upload_invoice(file: UploadFile = File(...), user = Depends(verify_tok
                 "original_filename": filename,
                 "file_type": filename.split('.')[-1].lower() if '.' in filename else ''
             }
+
+        # Auto-save to database
+        try:
+            # We pass the data to save_invoice
+            # save_invoice expects a dict with supplier, invoice_info, etc.
+            invoice_id = save_invoice(invoice_json)
+            invoice_json["invoice_id"] = invoice_id
+            invoice_json["saved"] = True
+            logger.info(f"Auto-saved invoice {filename} with ID {invoice_id}")
+        except Exception as save_err:
+            logger.error(f"Failed to auto-save invoice {filename}: {str(save_err)}")
+            invoice_json["saved"] = False
+            invoice_json["save_error"] = str(save_err)
         
         return invoice_json
         

@@ -50,8 +50,12 @@ def extract_invoice_data(file_bytes: bytes = None, filename: str = None, text: s
     
     # 3. Token estimation
     if ai_skipped:
+        # We saved what would have been used if we didn't have regex
+        cleaned_text = result.get("cleaned_text", "")
+        saved_count = 200 + estimate_tokens(cleaned_text)
+        cache_service.tokens_saved += saved_count
         total_estimated_tokens = 0
-        logger.info("AI skipped. 0 tokens used.")
+        logger.info(f"AI skipped. {saved_count} tokens saved by regex.")
     else:
         # Estimate tokens used for this request
         cleaned_text = result.get("cleaned_text", "")

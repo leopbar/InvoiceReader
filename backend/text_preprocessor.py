@@ -1,6 +1,7 @@
 import re
 import logging
 import tiktoken
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,51 @@ def estimate_tokens(text: str) -> int:
 
     logger.info(f"Estimated tokens: {accurate_count} (Rough: {rough_count})")
     return accurate_count
+
+def normalize_amount(val: Any) -> Optional[float]:
+    """
+    Standardizes monetary values:
+    - Removes currency symbols ($, €, £, ¥)
+    - Converts European format (1.234,56) to dot decimal (1234.56)
+    - Removes thousands separators (1,234.56 -> 1234.56)
+    - Ensures result is a plain float
+    """
+    if val is None:
+        return None
+    
+    if isinstance(val, (int, float)):
+        return float(val)
+    
+    s = str(val).strip()
+    if not s:
+        return None
+    
+    # Remove currency symbols and other non-numeric chars except , . -
+    s = re.sub(r'[^\d\.,\-]', '', s)
+    
+    # Detect European format: dot as thousands, comma as decimal (e.g. 1.234,56)
+    # If there is both a dot and a comma, and the comma is after the dot
+    if '.' in s and ',' in s:
+        if s.rfind(',') > s.rfind('.'):
+            # 1.234,56 -> 1234.56
+            s = s.replace('.', '').replace(',', '.')
+        else:
+            # 1,234.56 -> 1234.56
+            s = s.replace(',', '')
+    elif ',' in s:
+        # Check if it's like 123,45 (decimal) or 1,234 (thousands)
+        # If there are exactly 2 digits after the comma, assume it's a decimal
+        parts = s.split(',')
+        if len(parts) == 2 and len(parts[1]) == 2:
+            s = s.replace(',', '.')
+        else:
+            s = s.replace(',', '')
+            
+    try:
+        return float(s)
+    except ValueError:
+        logger.warning(f"Could not normalize amount: {val}")
+        return None
 
 def truncate_if_needed(text: str, max_tokens: int = 4000) -> str:
     """

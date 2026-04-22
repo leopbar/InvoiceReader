@@ -39,6 +39,12 @@ export default function UploadPage() {
           newResults[index] = { ...newResults[index], status: 'success', data };
           return newResults;
         });
+        
+        if (data.saved) {
+          toast.success(`${file.name}: Extracted and saved!`);
+        } else {
+          toast.success(`${file.name}: Extracted (Save pending)`);
+        }
       } catch (error: any) {
         setFileResults(prev => {
           const newResults = [...prev];
