@@ -121,12 +121,13 @@ def extract_invoice_node(state: GraphState) -> GraphState:
     
     structured_llm = llm.with_structured_output(InvoiceData)
     
-    # Base prompt with strict monetary formatting instructions
+    # Base prompt with strict formatting instructions
     prompt = (
         "Extract all invoice data from this document. Return structured data matching the schema exactly. "
         "Use null for missing fields. Dates in YYYY-MM-DD format. "
-        "IMPORTANT: For all monetary values, return plain numbers with a dot as decimal separator and no thousands separator. "
-        "Examples: 1234.56 (correct), 1.234,56 (wrong), $1,234.56 (wrong). Just the number: 1234.56"
+        "IMPORTANT: For all numeric values (quantities, unit prices, totals), return ONLY plain numbers with a dot as decimal separator and NO thousands separator or currency symbols. "
+        "Examples: 1234.56 (correct), 2.0 (correct), $1,234.56 (wrong), 2 units (wrong - just return 2). "
+        "For line items, if the quantity is '2 units', return just 2.0. If unit price is '$950.00', return just 950.0."
     )
     
     # Optimization if regex already found some data

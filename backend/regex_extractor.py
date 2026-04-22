@@ -92,7 +92,7 @@ def extract_with_regex(text: str) -> dict:
     date_regex = r"(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}[/-]\d{1,2}[/-]\d{1,2}|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}|\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4})"
     
     # Invoice Date
-    inv_date_pattern = r"(?:Invoice\s*Date|Date(?:\s*of\s*issue)?|Issue\s*Date|Issued)[:\s]*" + date_regex
+    inv_date_pattern = r"(?:Invoice\s*Date|Date(?:\s*of\s*issue)?|Issue\s*Date|Issued|Date)[:\s]*" + date_regex
     match = re.search(inv_date_pattern, text, re.IGNORECASE)
     if match:
         data["invoice_info"]["invoice_date"] = parse_date(match.group(1).strip())
@@ -114,8 +114,9 @@ def extract_with_regex(text: str) -> dict:
     
     # Total
     total_patterns = [
-        r"(?:Total|Total\s*Amount|Grand\s*Total|Amount\s*Due|Balance\s*Due)[:\s]*" + amount_regex,
-        r"TOTAL\s*PAYABLE[:\s]*" + amount_regex
+        r"(?:Total|Total\s*Amount|Grand\s*Total|Amount\s*Due|Balance\s*Due|Total\s*Due)[:\s]*" + amount_regex,
+        r"TOTAL\s*PAYABLE[:\s]*" + amount_regex,
+        r"Grand\s*Total\s*[:\s]*" + amount_regex
     ]
     for pattern in total_patterns:
         match = re.search(pattern, text, re.IGNORECASE)
