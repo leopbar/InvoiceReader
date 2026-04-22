@@ -26,6 +26,16 @@ export default function ExtractedDataDisplay({ data, showSaveButton = false }: E
     toast.success('Copied to clipboard');
   };
 
+  const formatCurrency = (amount: any, currencyCode: string = 'USD') => {
+    if (amount === null || amount === undefined || amount === '') return '-';
+    const num = Number(amount);
+    const formatted = new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(num);
+    return `${currencyCode || 'USD'} ${formatted}`;
+  };
+
   const copyAll = () => {
     navigator.clipboard.writeText(JSON.stringify(data, null, 2));
     toast.success('All data copied to clipboard');
@@ -185,8 +195,8 @@ export default function ExtractedDataDisplay({ data, showSaveButton = false }: E
                 <td className="px-4 py-3">{item.item_code || '-'}</td>
                 <td className="px-4 py-3">{item.quantity}</td>
                 <td className="px-4 py-3">{item.unit || '-'}</td>
-                <td className="px-4 py-3">{item.unit_price}</td>
-                <td className="px-4 py-3 font-semibold">{item.total_price}</td>
+                <td className="px-4 py-3">{formatCurrency(item.unit_price, data.invoice_info?.currency)}</td>
+                <td className="px-4 py-3 font-semibold">{formatCurrency(item.total_price, data.invoice_info?.currency)}</td>
               </tr>
             ))}
             {(!data.line_items || data.line_items.length === 0) && (
@@ -208,15 +218,15 @@ export default function ExtractedDataDisplay({ data, showSaveButton = false }: E
         {/* Totals */}
         <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
           <h3 className="text-base font-semibold text-gray-800 mb-4 border-b pb-2">Totals</h3>
-          <FieldRow label="Subtotal" value={data.totals?.subtotal} />
-          <FieldRow label="Tax Amount" value={data.totals?.tax_amount} />
-          <FieldRow label="Discount" value={data.totals?.discount} />
+          <FieldRow label="Subtotal" value={formatCurrency(data.totals?.subtotal, data.invoice_info?.currency)} />
+          <FieldRow label="Tax Amount" value={formatCurrency(data.totals?.tax_amount, data.invoice_info?.currency)} />
+          <FieldRow label="Discount" value={formatCurrency(data.totals?.discount, data.invoice_info?.currency)} />
           
           <div className="flex justify-between items-center py-4 mt-2 border-t-2 border-gray-100">
             <span className="text-gray-800 font-bold text-lg">Total Amount</span>
             <div className="flex items-center">
               <span className="text-blue-600 font-bold text-2xl">
-                 {data.invoice_info?.currency} {data.totals?.total_amount}
+                 {formatCurrency(data.totals?.total_amount, data.invoice_info?.currency)}
               </span>
               <CopyBtn text={data.totals?.total_amount} />
             </div>

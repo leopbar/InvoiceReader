@@ -68,3 +68,8 @@ export const getMe = async () => {
   const response = await apiClient.get('/me');
   return response.data;
 };
+
+export const getStats = async () => {
+  const response = await apiClient.get('/stats');
+  return response.data;
+};
