@@ -1,4 +1,5 @@
 from backend.database import supabase
+from backend.extraction.schemas import Invoice
 
 def save_invoice(data: dict) -> str:
     # 1. Supplier

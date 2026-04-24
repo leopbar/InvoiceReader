@@ -2,7 +2,17 @@ import axios from 'axios';
 import { supabase } from './supabase';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
-console.log('Using API_URL:', API_URL);
+
+export interface Invoice {
+  supplier: any;
+  invoice_info: any;
+  bill_to: any;
+  ship_to: any;
+  line_items: any[];
+  totals: any;
+  notes?: string;
+  metadata?: any;
+}
 
 // Create base instance
 const apiClient = axios.create({
@@ -30,7 +40,7 @@ export const uploadInvoice = async (file: File) => {
   return response.data;
 };
 
-export const saveInvoice = async (data: any) => {
+export const saveInvoice = async (data: Invoice) => {
   const response = await apiClient.post('/save', { data });
   return response.data;
 };

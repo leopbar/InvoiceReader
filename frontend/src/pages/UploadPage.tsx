@@ -42,7 +42,8 @@ export default function UploadPage() {
       } catch (error: any) {
         setFileResults(prev => {
           const newResults = [...prev];
-          const msg = error.response?.data?.detail || 'Failed to process invoice';
+          const detail = error.response?.data?.detail;
+          const msg = detail?.message ?? (typeof detail === 'string' ? detail : 'Failed to process invoice');
           newResults[index] = { ...newResults[index], status: 'error', error: msg };
           return newResults;
         });
@@ -158,7 +159,7 @@ export default function UploadPage() {
             
             <div className="p-6">
               {result.status === 'success' && result.data && (
-                  <ExtractedDataDisplay data={result.data} showSaveButton={true} />
+                  <ExtractedDataDisplay data={result.data.data} showSaveButton={true} />
               )}
             </div>
           </div>

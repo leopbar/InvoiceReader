@@ -4,10 +4,10 @@ import traceback
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List, Any
 
 from backend.file_processor import process_file
-from backend.gemini_service import extract_invoice_data
+from backend.extraction import run_extraction, ExtractionResult, Invoice, InvoiceWithMetadata
 from backend.supabase_service import save_invoice
 from backend.database import supabase, supabase_admin
 
@@ -40,13 +40,13 @@ app.add_middleware(
 # Debug middleware to log all requests
 @app.middleware("http")
 async def log_requests(request, call_next):
-    print(f"Incoming request: {request.method} {request.url.path}")
+    logger.info(f"Incoming request: {request.method} {request.url.path}")
     try:
         response = await call_next(request)
-        print(f"Response status: {response.status_code}")
+        logger.info(f"Response status: {response.status_code}")
         return response
     except Exception as e:
-        print(f"Request failed: {str(e)}")
+        logger.error(f"Request failed: {str(e)}")
         raise e
 
 # Max upload size: 10 MB
@@ -95,22 +95,24 @@ def read_root():
 def health_check():
     return {"status": "ok"}
 
-@app.get("/api/me")
+class UserProfile(BaseModel):
+    id: str
+    email: str
+    role: str
+
+@app.get("/api/me", response_model=UserProfile)
 def get_me(user = Depends(verify_token)):
     try:
-        # We skip RLS by using supabase_admin to check for the user's role
         role_res = supabase_admin.table("user_roles").select("role").eq("user_id", user.id).execute()
         role = role_res.data[0]["role"] if role_res.data else "user"
         return {"id": user.id, "email": user.email, "role": role}
     except Exception as e:
         logger.error(f"Error fetching user role: {str(e)}")
-        # Default to user role if check fails
         return {"id": user.id, "email": user.email, "role": "user"}
 
-@app.post("/api/upload")
+@app.post("/api/upload", response_model=ExtractionResult)
 async def upload_invoice(file: UploadFile = File(...), user = Depends(verify_token)):
     try:
-        # Read file with size limit enforcement
         file_bytes = await file.read()
         if len(file_bytes) > MAX_UPLOAD_SIZE:
             raise HTTPException(status_code=413, detail=f"File too large. Maximum size is {MAX_UPLOAD_SIZE // (1024*1024)} MB.")
@@ -120,21 +122,32 @@ async def upload_invoice(file: UploadFile = File(...), user = Depends(verify_tok
         
         filename = file.filename
         
-        extracted = process_file(file_bytes, filename)
-        text = extracted.get("text")
-        image_base64 = extracted.get("image_base64")
+        extracted_file = process_file(file_bytes, filename)
+        text = extracted_file.get("text")
+        image_base64 = extracted_file.get("image_base64")
+        file_type = extracted_file.get("file_type")
         
         if not text and not image_base64:
             raise HTTPException(status_code=400, detail="Could not extract text or image from file.")
             
-        invoice_json = extract_invoice_data(text=text, image_base64=image_base64)
+        result = run_extraction(text=text, image_base64=image_base64, file_type=file_type)
         
-        invoice_json["metadata"] = {
-            "original_filename": filename,
-            "file_type": extracted.get("file_type")
-        }
-        
-        return invoice_json
+        if result.get("success") and result.get("data"):
+            result["data"]["metadata"] = {
+                "original_filename": filename,
+                "file_type": file_type
+            }
+            return result
+        else:
+            raise HTTPException(
+                status_code=422, 
+                detail={
+                    "message": result.get("error") or "Extraction failed",
+                    "validation_errors": result.get("validation_errors"),
+                    "attempts": result.get("attempts"),
+                    "model_used": result.get("model_used")
+                }
+            )
         
     except HTTPException:
         raise
@@ -143,12 +156,16 @@ async def upload_invoice(file: UploadFile = File(...), user = Depends(verify_tok
         raise HTTPException(status_code=500, detail=str(e))
 
 class SaveInvoiceRequest(BaseModel):
-    data: dict
+    data: InvoiceWithMetadata
 
-@app.post("/api/save")
+class SavedInvoiceResponse(BaseModel):
+    status: str
+    invoice_id: str
+
+@app.post("/api/save", response_model=SavedInvoiceResponse)
 def save_extracted_invoice(request: SaveInvoiceRequest, user = Depends(verify_token)):
     try:
-        data = request.data
+        data = request.data.model_dump(mode="json")
         invoice_id = save_invoice(data)
         
         metadata = data.get("metadata", {})
@@ -216,7 +233,7 @@ class UserCreate(BaseModel):
     password: str
     role: str
 
-@app.get("/api/users")
+@app.get("/api/users", response_model=List[UserProfile])
 def get_all_users(admin_user = Depends(verify_admin)):
     if not supabase_admin:
         raise HTTPException(status_code=500, detail="Admin client not configured")
@@ -226,7 +243,7 @@ def get_all_users(admin_user = Depends(verify_admin)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/users")
+@app.post("/api/users", response_model=UserProfile)
 def create_new_user(user_data: UserCreate, admin_user = Depends(verify_admin)):
     if not supabase_admin:
         raise HTTPException(status_code=500, detail="Admin client not configured")
