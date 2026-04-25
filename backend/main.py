@@ -1,14 +1,19 @@
 import os
+import json
+import queue
+import asyncio
 import logging
 import traceback
 import time
+import threading
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, List, Any
 
 from backend.file_processor import process_file
-from backend.extraction import run_extraction, ExtractionResult, Invoice, InvoiceWithMetadata
+from backend.extraction import run_extraction, run_extraction_streaming, ExtractionResult, Invoice, InvoiceWithMetadata
 from backend.supabase_service import save_invoice
 from backend.database import supabase, supabase_admin
 
@@ -155,6 +160,91 @@ async def upload_invoice(file: UploadFile = File(...), user = Depends(verify_tok
     except Exception as e:
         logger.error(f"Error uploading invoice: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/upload/stream")
+async def upload_invoice_stream(file: UploadFile = File(...), user = Depends(verify_token)):
+    """
+    SSE streaming endpoint. Accepts a multipart file and streams back progress 
+    events in real time as the LangGraph extraction pipeline runs.
+    Each event is a JSON object sent as: data: {...}\\n\\n
+    The final event has type='result' with the full extracted data.
+    """
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum size is {MAX_UPLOAD_SIZE // (1024*1024)} MB.")
+    if len(file_bytes) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    filename = file.filename
+
+    try:
+        extracted_file = process_file(file_bytes, filename)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Could not read file: {str(e)}")
+
+    text = extracted_file.get("text")
+    image_base64 = extracted_file.get("image_base64")
+    file_type = extracted_file.get("file_type")
+
+    if not text and not image_base64:
+        raise HTTPException(status_code=400, detail="Could not extract text or image from file.")
+
+    # Queue to communicate between the extraction thread and the SSE generator
+    progress_q: queue.Queue = queue.Queue()
+    SENTINEL = object()  # Signals that the thread is done
+
+    def on_progress(step: str, detail: str = ""):
+        progress_q.put({"type": "progress", "step": step, "detail": detail})
+
+    def run_in_thread():
+        try:
+            result = run_extraction_streaming(
+                text=text,
+                image_base64=image_base64,
+                file_type=file_type,
+                progress_callback=on_progress
+            )
+            if result.get("data"):
+                result["data"]["metadata"] = {
+                    "original_filename": filename,
+                    "file_type": file_type
+                }
+            progress_q.put({"type": "result", "data": result})
+        except Exception as e:
+            progress_q.put({"type": "error", "message": str(e)})
+        finally:
+            progress_q.put(SENTINEL)
+
+    thread = threading.Thread(target=run_in_thread, daemon=True)
+    thread.start()
+
+    async def event_generator():
+        loop = asyncio.get_event_loop()
+        while True:
+            try:
+                # Run blocking queue.get in a thread pool to avoid blocking the event loop
+                item = await loop.run_in_executor(
+                    None,
+                    lambda: progress_q.get(timeout=120)
+                )
+            except Exception:
+                yield f"data: {json.dumps({'type': 'error', 'message': 'Extraction timed out'})}\n\n"
+                break
+
+            if item is SENTINEL:
+                break
+
+            yield f"data: {json.dumps(item)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # Disables Nginx buffering for SSE
+        }
+    )
 
 class SaveInvoiceRequest(BaseModel):
     data: InvoiceWithMetadata

@@ -1,4 +1,4 @@
-from typing import List, Optional, Literal, Dict, Any, TypedDict
+from typing import List, Optional, Literal, Dict, Any, TypedDict, Callable
 
 class ExtractionState(TypedDict, total=False):
     # Inputs
@@ -26,3 +26,6 @@ class ExtractionState(TypedDict, total=False):
     final_result: Optional[dict]
     final_error: Optional[str]
     token_stats: Optional[Dict[str, int]]  # {"prompt_tokens": n, "completion_tokens": n, ...}
+
+    # Streaming progress (optional, injected by streaming endpoint)
+    progress_callback: Optional[Any]  # Callable[[str, str], None] - (step_id, detail)

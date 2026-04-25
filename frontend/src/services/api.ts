@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { supabase } from './supabase';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001/api';
 
 export interface Invoice {
   supplier: any;
@@ -38,6 +38,64 @@ export const uploadInvoice = async (file: File) => {
     }
   });
   return response.data;
+};
+
+export const uploadInvoiceStreaming = async (
+  file: File,
+  onStep: (step: string, detail: string) => void,
+  onResult: (result: any) => void,
+  onError: (message: string) => void
+): Promise<void> => {
+  // Get auth token manually since we're using fetch, not axios
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${API_URL}/upload/stream`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: formData
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    onError(`Upload failed (${response.status}): ${errorText}`);
+    return;
+  }
+
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? ''; // Keep the last incomplete line in the buffer
+
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        try {
+          const payload = JSON.parse(line.slice(6));
+          if (payload.type === 'progress') {
+            onStep(payload.step, payload.detail ?? '');
+          } else if (payload.type === 'result') {
+            onResult(payload.data);
+          } else if (payload.type === 'error') {
+            onError(payload.message ?? 'Unknown error');
+          }
+        } catch {
+          // Ignore malformed SSE lines
+        }
+      }
+    }
+  }
 };
 
 export const saveInvoice = async (data: Invoice) => {

@@ -13,7 +13,19 @@ from .prompts import EXTRACTION_PROMPT, build_targeted_retry_prompt
 logger = logging.getLogger("invoice_reader.nodes")
 import os
 
+
+def _emit(state: ExtractionState, step: str, detail: str = "") -> None:
+    """Safely emit a progress step if a callback is registered."""
+    cb = state.get("progress_callback")
+    if cb:
+        try:
+            cb(step, detail)
+        except Exception:
+            pass  # Never crash the pipeline due to a progress emit failure
+
+
 def preprocess_document_node(state: ExtractionState) -> Dict[str, Any]:
+    _emit(state, "reading", "Reading and parsing invoice file...")
     cleaned_text, complexity = preprocess(
         state.get("raw_text"), 
         state.get("image_base64"), 
@@ -26,9 +38,8 @@ def preprocess_document_node(state: ExtractionState) -> Dict[str, Any]:
 
 def select_model_node(state: ExtractionState) -> Dict[str, Any]:
     complexity = state.get("complexity_signal", "simple")
-    # Default to gemini
     model_key = "gemini_cheap" if complexity == "simple" else "gemini_expensive"
-    
+    _emit(state, "sending_to_ai", "gemini")
     return {
         "current_model": model_key,
         "attempts": 0,
@@ -38,11 +49,20 @@ def select_model_node(state: ExtractionState) -> Dict[str, Any]:
 
 def extract_node(state: ExtractionState) -> Dict[str, Any]:
     model_key = state.get("current_model")
-    
+    fallback_used = state.get("fallback_used", False)
+
+    # Emit the right status depending on whether this is the primary or fallback model
+    if fallback_used:
+        _emit(state, "ai_answering", model_key)
+    else:
+        _emit(state, "waiting_for_ai", model_key)
+
     try:
         llm = get_llm(model_key)
     except Exception as e:
         logger.error(f"Failed to initialize LLM client {model_key}: {str(e)}")
+        if not fallback_used:
+            _emit(state, "ai_failed", str(e))
         return {
             "validation_errors": [{"type": "api_config_error", "msg": str(e)}],
             "attempts": state.get("attempts", 0) + 1
@@ -68,16 +88,17 @@ def extract_node(state: ExtractionState) -> Dict[str, Any]:
     try:
         result = llm.invoke(messages)
         logger.info(f"LLM extraction successful for {model_key}")
-        # result is an Invoice object
         parsed_data = result.model_dump(mode="json")
         logger.debug(f"Parsed data: {parsed_data}")
         return {
             "parsed_data": parsed_data,
-            "raw_output": "Structured Output Received", # We don't have raw JSON here easily with LangChain
+            "raw_output": "Structured Output Received",
             "validation_errors": None
         }
     except Exception as e:
         logger.error(f"LLM extraction failed: {str(e)}")
+        if not fallback_used:
+            _emit(state, "ai_failed", str(e))
         return {
             "validation_errors": [{"type": "api_error", "msg": str(e)}],
             "attempts": state.get("attempts", 0) + 1
@@ -111,11 +132,8 @@ def targeted_retry_node(state: ExtractionState) -> Dict[str, Any]:
     cleaned_text = state.get("cleaned_text", "")
     
     if not failed_fields:
-        # If no specific fields failed (e.g., API error), we can't do a targeted retry.
-        # We'll just increment attempts and return, which will likely trigger fallback or finalize_error.
         return {"attempts": state.get("attempts", 0) + 1}
 
-    # Simple excerpt extraction: find lines containing keywords from failed fields
     relevant_lines = []
     keywords = set()
     for field in failed_fields:
@@ -143,11 +161,9 @@ def targeted_retry_node(state: ExtractionState) -> Dict[str, Any]:
     
     try:
         result = llm.invoke([HumanMessage(content=prompt)])
-        # Merge with existing parsed_data
         existing_data = state.get("parsed_data", {})
         new_data = result.model_dump(mode="json")
         
-        # Deep merge for simple fields (one level for simplicity)
         for k, v in new_data.items():
             if isinstance(v, dict) and k in existing_data and isinstance(existing_data[k], dict):
                 existing_data[k].update(v)
@@ -170,6 +186,8 @@ def fallback_model_node(state: ExtractionState) -> Dict[str, Any]:
         new_model = current_model.replace("gemini", "openai")
     else:
         new_model = current_model.replace("openai", "gemini")
+
+    _emit(state, "trying_new_ai", new_model)
         
     return {
         "current_model": new_model,
@@ -180,6 +198,7 @@ def fallback_model_node(state: ExtractionState) -> Dict[str, Any]:
     }
 
 def finalize_success_node(state: ExtractionState) -> Dict[str, Any]:
+    _emit(state, "preparing_data", "Structuring extracted data...")
     return {
         "final_result": state.get("parsed_data"),
         "final_error": None

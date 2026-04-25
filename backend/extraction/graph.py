@@ -107,3 +107,41 @@ def run_extraction(text: str = None, image_base64: str = None, file_type: str = 
     )
     
     return result.model_dump(mode="json")
+
+
+def run_extraction_streaming(
+    text: str = None,
+    image_base64: str = None,
+    file_type: str = None,
+    progress_callback=None
+) -> dict:
+    """
+    Same as run_extraction but injects a progress_callback into the state
+    so each node can emit real-time SSE progress events.
+    """
+    graph = build_graph()
+    
+    initial_state = {
+        "raw_text": text,
+        "image_base64": image_base64,
+        "file_type": file_type,
+        "attempts": 0,
+        "fallback_used": False,
+        "progress_callback": progress_callback
+    }
+    
+    final_state = graph.invoke(initial_state)
+    
+    from .schemas import ExtractionResult
+    
+    result = ExtractionResult(
+        success=final_state.get("final_result") is not None,
+        data=final_state.get("final_result"),
+        error=final_state.get("final_error"),
+        validation_errors=final_state.get("validation_errors"),
+        attempts=final_state.get("attempts", 0),
+        model_used=final_state.get("current_model"),
+        token_stats=final_state.get("token_stats")
+    )
+    
+    return result.model_dump(mode="json")
