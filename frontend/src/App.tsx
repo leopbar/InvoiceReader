@@ -1,7 +1,7 @@
 import React from 'react';
 import { createBrowserRouter, RouterProvider, Link, useLocation, Navigate, Outlet } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { Receipt, Archive, Upload, Users, LogOut, Loader2 } from 'lucide-react';
+import { Receipt, Archive, Upload, Users, LogOut, Loader2, Home } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 import UploadPage from './pages/UploadPage';
@@ -19,12 +19,12 @@ function Navigation() {
     <nav className="bg-white border-b shadow-sm sticky top-0 z-10 w-full">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
-          <div className="flex items-center space-x-3">
+          <Link to="/" className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
             <div className="bg-blue-600 p-2 rounded-lg text-white">
               <Receipt size={24} />
             </div>
             <span className="font-bold text-xl text-gray-900 tracking-tight">Invoice Reader</span>
-          </div>
+          </Link>
           
           <div className="flex items-center space-x-4">
             <Link 
@@ -33,8 +33,8 @@ function Navigation() {
                 path === '/' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
               }`}
             >
-              <Upload size={18} />
-              <span>Upload</span>
+              <Home size={18} />
+              <span>Home</span>
             </Link>
             <Link 
               to="/history" 
