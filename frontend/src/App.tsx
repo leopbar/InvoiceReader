@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Link, useLocation, Navigate, Outlet } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { Receipt, Archive, Upload, Users, LogOut, Loader2 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -77,7 +77,7 @@ function Navigation() {
   );
 }
 
-function PrivateApp() {
+function Layout() {
   const { session, loading } = useAuth();
 
   if (loading) {
@@ -96,24 +96,42 @@ function PrivateApp() {
     <div className="min-h-screen bg-slate-50 relative pb-12">
       <Navigation />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        <Routes>
-          <Route path="/" element={<UploadPage />} />
-          <Route path="/history" element={<HistoryPage />} />
-          <Route path="/invoice/:id" element={<InvoiceDetailPage />} />
-          <Route path="/users" element={<UserManagementPage />} />
-        </Routes>
+        <Outlet />
       </main>
     </div>
   );
 }
 
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <Layout />,
+    children: [
+      {
+        path: "/",
+        element: <UploadPage />,
+      },
+      {
+        path: "/history",
+        element: <HistoryPage />,
+      },
+      {
+        path: "/invoice/:id",
+        element: <InvoiceDetailPage />,
+      },
+      {
+        path: "/users",
+        element: <UserManagementPage />,
+      },
+    ],
+  },
+]);
+
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <Toaster position="top-center" />
-        <PrivateApp />
-      </Router>
+      <Toaster position="top-center" />
+      <RouterProvider router={router} />
     </AuthProvider>
   );
 }
