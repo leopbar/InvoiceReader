@@ -31,16 +31,20 @@ def route_after_validate(state: ExtractionState):
             return "fallback_model"
         return "finalize_error"
     
+    # If we have already used a fallback model, we DO NOT retry or cycle further.
+    # We either succeed with what we have or finalize the error.
+    if state.get("fallback_used"):
+        if state.get("parsed_data"):
+            return "finalize_success"
+        return "finalize_error"
+
     attempts = state.get("attempts", 0)
     max_attempts = state.get("max_attempts", 2)
     
     if attempts < max_attempts:
         return "targeted_retry"
     
-    if not state.get("fallback_used"):
-        return "fallback_model"
-    
-    return "finalize_error"
+    return "fallback_model"
 
 def build_graph():
     workflow = StateGraph(ExtractionState)

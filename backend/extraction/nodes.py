@@ -173,7 +173,6 @@ def fallback_model_node(state: ExtractionState) -> Dict[str, Any]:
         
     return {
         "current_model": new_model,
-        "attempts": 0,
         "fallback_used": True,
         "parsed_data": None,
         "validation_errors": None,
