@@ -55,7 +55,7 @@ interface FileResult {
 function StepPipeline({ steps }: { steps: Step[] }) {
   const visibleSteps = steps.filter(s => s.status !== 'hidden');
   return (
-    <div className="flex flex-wrap gap-2 px-4 pt-4 pb-2">
+    <div className="flex flex-wrap gap-2 px-6 pt-5 pb-8 border-b border-gray-100 bg-gray-50/30">
       {visibleSteps.map((step, idx) => {
         const isLast = idx === visibleSteps.length - 1;
         return (
@@ -395,7 +395,7 @@ export default function UploadPage() {
             {/* Extracted data */}
             <div>
               {result.status === 'success' && result.data && (
-                <div className="animate-in fade-in duration-500 mt-4">
+                <div className="animate-in fade-in duration-500 mt-10 px-6 pb-8">
                   <ExtractedDataDisplay
                     data={result.data.data}
                     showSaveButton={!result.isSaved}
