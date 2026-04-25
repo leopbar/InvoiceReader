@@ -1,0 +1,32 @@
+INVOICE
+
+From:
+SKYFIELD AGTECH LLC
+123 Innovation Drive
+San Francisco, CA 94107
+Tax ID: 87-1234567
+Phone: (415) 555-0100
+Email: billing@skyfieldagtech.com
+
+Bill To:
+GREENFIELD FARMS INC
+456 Harvest Road
+Sacramento, CA 95814
+
+Invoice Number: INV-2024-0042
+Invoice Date: 2024-03-15
+Due Date: 2024-04-15
+Currency: USD
+Payment Terms: Net 30
+
+ITEMS:
+Description            | Code    | Qty | Unit  | Unit Price | Total
+Soil Sensor Module     | SSM-200 |  50 | units |     120.00 |  6,000.00
+Weather Station Kit    | WSK-100 |  10 | units |     450.00 |  4,500.00
+Data Analytics License | DAL-PRO |  12 | month |      99.00 |  1,188.00
+
+Subtotal:  11,688.00
+Tax (8%):     935.04
+Total:    12,623.04
+
+Notes: Payment via wire transfer. Reference PO#GF-2024-118.

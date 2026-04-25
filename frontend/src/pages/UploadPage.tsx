@@ -1,8 +1,9 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
+import { useBlocker } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import { UploadCloud, FileText, Loader2, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { uploadInvoice } from '../services/api';
+import { uploadInvoice, saveInvoice } from '../services/api';
 import ExtractedDataDisplay from '../components/ExtractedDataDisplay';
 
 interface FileResult {
@@ -10,11 +11,48 @@ interface FileResult {
   data: any;
   status: 'processing' | 'success' | 'error';
   error?: string;
+  isSaved?: boolean;
 }
 
 export default function UploadPage() {
   const [fileResults, setFileResults] = useState<FileResult[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+
+  const blocker = useBlocker(({ nextLocation }) => {
+    return isUploading && nextLocation.pathname !== window.location.pathname;
+  });
+
+  // Handle blocked navigation with a custom in-app notification
+  useEffect(() => {
+    if (blocker.state === 'blocked') {
+      toast.error(
+        "Navigation Blocked: Please wait for extraction to complete before leaving.",
+        { 
+          id: 'nav-blocked', 
+          duration: 4000,
+          icon: '⚠️',
+          style: {
+            borderRadius: '10px',
+            background: '#333',
+            color: '#fff',
+          },
+        }
+      );
+      blocker.reset();
+    }
+  }, [blocker.state, blocker]);
+
+  // Prevent browser refresh/close while uploading (Browser mandatory dialog)
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isUploading) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isUploading]);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
@@ -33,10 +71,27 @@ export default function UploadPage() {
     // Process files continuously
     const processFile = async (file: File, index: number) => {
       try {
-        const data = await uploadInvoice(file);
+        const extractionResult = await uploadInvoice(file);
+        
+        // Auto-save to database
+        let savedToDb = false;
+        if (extractionResult && extractionResult.data) {
+          try {
+            await saveInvoice(extractionResult.data);
+            savedToDb = true;
+          } catch (saveError) {
+            console.error(`Auto-save failed for ${file.name}:`, saveError);
+          }
+        }
+
         setFileResults(prev => {
           const newResults = [...prev];
-          newResults[index] = { ...newResults[index], status: 'success', data };
+          newResults[index] = { 
+            ...newResults[index], 
+            status: 'success', 
+            data: extractionResult,
+            isSaved: savedToDb 
+          };
           return newResults;
         });
       } catch (error: any) {
@@ -159,7 +214,11 @@ export default function UploadPage() {
             
             <div className="p-6">
               {result.status === 'success' && result.data && (
-                  <ExtractedDataDisplay data={result.data.data} showSaveButton={true} />
+                <ExtractedDataDisplay 
+                  data={result.data.data} 
+                  showSaveButton={true}
+                  initialSaved={result.isSaved}
+                />
               )}
             </div>
           </div>

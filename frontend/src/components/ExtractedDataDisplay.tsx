@@ -6,18 +6,21 @@ import { saveInvoice } from '../services/api';
 interface ExtractedDataDisplayProps {
   data: any;
   showSaveButton?: boolean;
+  initialSaved?: boolean;
 }
 
-export default function ExtractedDataDisplay({ data, showSaveButton = false }: ExtractedDataDisplayProps) {
+export default function ExtractedDataDisplay({ data, showSaveButton = false, initialSaved = false }: ExtractedDataDisplayProps) {
+  const [isSaved, setIsSaved] = React.useState(initialSaved);
+
+  // Reset save state if data changes (e.g. new file uploaded)
+  React.useEffect(() => {
+    setIsSaved(initialSaved);
+  }, [data, initialSaved]);
+
   const copyToClipboard = (text: string) => {
     if (!text) return;
     navigator.clipboard.writeText(String(text));
     toast.success('Copied to clipboard');
-  };
-
-  const copyAll = () => {
-    navigator.clipboard.writeText(JSON.stringify(data, null, 2));
-    toast.success('All data copied to clipboard');
   };
 
   const handleSave = async () => {
@@ -26,6 +29,7 @@ export default function ExtractedDataDisplay({ data, showSaveButton = false }: E
       await saveInvoice(data);
       toast.dismiss(loadingToast);
       toast.success('Successfully saved to database!');
+      setIsSaved(true);
     } catch (err: any) {
       toast.error(err.message || 'Failed to save invoice');
     }
@@ -59,21 +63,17 @@ export default function ExtractedDataDisplay({ data, showSaveButton = false }: E
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold text-gray-800">Extracted Invoice Data</h2>
         <div className="flex space-x-3">
-          <button 
-            onClick={copyAll}
-            className="flex items-center space-x-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm font-medium"
-          >
-            <Copy size={16} />
-            <span>Copy JSON</span>
-          </button>
-          
           {showSaveButton && (
             <button 
               onClick={handleSave}
-              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium shadow-sm"
+              disabled={isSaved}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium shadow-sm
+                ${isSaved 
+                  ? 'bg-green-100 text-green-700 cursor-not-allowed border border-green-200' 
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
             >
-              <Save size={16} />
-              <span>Save to Database</span>
+              {isSaved ? <CheckCircle size={16} /> : <Save size={16} />}
+              <span>{isSaved ? 'Saved to Database' : 'Save to Database'}</span>
             </button>
           )}
         </div>
