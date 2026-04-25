@@ -395,7 +395,7 @@ export default function UploadPage() {
             {/* Extracted data */}
             <div>
               {result.status === 'success' && result.data && (
-                <div className="animate-in fade-in duration-500">
+                <div className="animate-in fade-in duration-500 mt-4">
                   <ExtractedDataDisplay
                     data={result.data.data}
                     showSaveButton={!result.isSaved}

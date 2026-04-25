@@ -59,7 +59,7 @@ export default function ExtractedDataDisplay({ data, showSaveButton = false, ini
   );
 
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full space-y-6 pt-6 border-t border-gray-100">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold text-gray-800">Extracted Invoice Data</h2>
         <div className="flex space-x-3">
