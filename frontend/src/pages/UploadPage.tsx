@@ -51,6 +51,43 @@ interface FileResult {
   saveError?: string;
 }
 
+function getFriendlyErrorMessage(error: string): { title: string, message: string } {
+  const lowError = error.toLowerCase();
+  
+  if (lowError.includes("no supplier name") || lowError.includes("total amount found")) {
+    return {
+      title: "We couldn't read this invoice",
+      message: "The AI couldn't find a supplier name, invoice number, or total amount. Please ensure the document is clear and contains these details."
+    };
+  }
+  
+  if (lowError.includes("429") || lowError.includes("quota") || lowError.includes("rate limit")) {
+    return {
+      title: "AI service is busy",
+      message: "The AI service is temporarily overwhelmed. Please wait a few moments and try re-uploading this file."
+    };
+  }
+
+  if (lowError.includes("timeout") || lowError.includes("timed out")) {
+    return {
+      title: "Connection timed out",
+      message: "It's taking too long to process this file. This might be due to a large file size or slow connection. Please try again."
+    };
+  }
+
+  if (lowError.includes("could not read file") || lowError.includes("unsupported")) {
+    return {
+      title: "Unsupported or corrupt file",
+      message: "We're having trouble opening this file. Please make sure it's a valid PDF or image and try again."
+    };
+  }
+
+  return {
+    title: "Extraction failed",
+    message: "Something went wrong while analyzing the document. You can try re-uploading it or check if the file is valid."
+  };
+}
+
 // --- Step pipeline component ---
 function StepPipeline({ steps }: { steps: Step[] }) {
   const visibleSteps = steps.filter(s => s.status !== 'hidden');
@@ -404,9 +441,27 @@ export default function UploadPage() {
                 </div>
               )}
               {result.status === 'error' && result.error && (
-                <div className="p-6 text-center space-y-2">
-                  <AlertCircle size={32} className="text-red-400 mx-auto" />
-                  <p className="text-red-600 text-sm font-medium">{result.error}</p>
+                <div className="p-10 text-center space-y-3 bg-red-50/30">
+                  <div className="bg-red-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto text-red-600 mb-2">
+                    <AlertCircle size={24} />
+                  </div>
+                  <h4 className="text-lg font-bold text-red-800">
+                    {getFriendlyErrorMessage(result.error).title}
+                  </h4>
+                  <p className="text-red-600 text-sm max-w-md mx-auto leading-relaxed">
+                    {getFriendlyErrorMessage(result.error).message}
+                  </p>
+                  <div className="pt-4">
+                    <button 
+                      onClick={() => {
+                        // Small hack to re-trigger upload for this specific file
+                        // but since sequential loop is complex, we just suggest re-drop
+                      }}
+                      className="text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 px-4 py-2 rounded-lg transition-colors"
+                    >
+                      Check file & try again
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
