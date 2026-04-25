@@ -73,24 +73,13 @@ export default function UploadPage() {
       try {
         const extractionResult = await uploadInvoice(file);
         
-        // Auto-save to database
-        let savedToDb = false;
-        if (extractionResult && extractionResult.data) {
-          try {
-            await saveInvoice(extractionResult.data);
-            savedToDb = true;
-          } catch (saveError) {
-            console.error(`Auto-save failed for ${file.name}:`, saveError);
-          }
-        }
-
         setFileResults(prev => {
           const newResults = [...prev];
           newResults[index] = { 
             ...newResults[index], 
             status: 'success', 
             data: extractionResult,
-            isSaved: savedToDb 
+            isSaved: extractionResult.saved
           };
           return newResults;
         });

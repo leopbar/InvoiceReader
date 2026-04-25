@@ -22,6 +22,7 @@ def get_llm(model_key: str):
             google_api_key=google_api_key,
             temperature=0,
             response_mime_type="application/json",
+            max_retries=1,
             # We will pass the schema during the .with_structured_output call if supported, 
             # or use the raw model and parse it ourselves.
         ).with_structured_output(Invoice)

@@ -87,3 +87,6 @@ class ExtractionResult(BaseModel):
     attempts: int = 0
     model_used: Optional[str] = None
     token_stats: Optional[Dict[str, int]] = None
+    saved: bool = False
+    save_error: Optional[str] = None
+    invoice_id: Optional[str] = None

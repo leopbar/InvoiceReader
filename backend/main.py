@@ -1,6 +1,7 @@
 import os
 import logging
 import traceback
+import time
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -137,6 +138,33 @@ async def upload_invoice(file: UploadFile = File(...), user = Depends(verify_tok
                 "original_filename": filename,
                 "file_type": file_type
             }
+            
+            # --- AUTO-SAVE LOGIC WITH RETRY ---
+            saved = False
+            save_error = None
+            invoice_id = None
+            
+            try:
+                logger.info(f"Attempting auto-save for {filename}")
+                invoice_id = save_invoice(result["data"])
+                saved = True
+                logger.info(f"Auto-save successful for {filename}: {invoice_id}")
+            except Exception as e:
+                logger.warning(f"First auto-save attempt failed for {filename}: {str(e)}. Retrying in 1s...")
+                time.sleep(1)
+                try:
+                    invoice_id = save_invoice(result["data"])
+                    saved = True
+                    logger.info(f"Auto-save successful on second attempt for {filename}: {invoice_id}")
+                except Exception as e2:
+                    save_error = str(e2)
+                    logger.error(f"Auto-save failed after retry for {filename}: {save_error}")
+            
+            # Update result with save status
+            result["saved"] = saved
+            result["save_error"] = save_error
+            result["invoice_id"] = invoice_id
+            
             return result
         else:
             raise HTTPException(
