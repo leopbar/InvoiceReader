@@ -14,7 +14,7 @@ def get_llm(model_key: str):
         if not gemini_api_key:
             raise ValueError("GEMINI_API_KEY not found in environment")
         
-        model_name = "gemini-2.0-flash" if "cheap" in model_key else "gemini-3-flash-preview"
+        model_name = "gemini-3-flash-preview" if "cheap" in model_key else "gemini-3-flash-preview"
         
         # Note: structured output for Gemini via langchain
         return ChatGoogleGenerativeAI(

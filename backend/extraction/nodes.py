@@ -38,7 +38,15 @@ def select_model_node(state: ExtractionState) -> Dict[str, Any]:
 
 def extract_node(state: ExtractionState) -> Dict[str, Any]:
     model_key = state.get("current_model")
-    llm = get_llm(model_key)
+    
+    try:
+        llm = get_llm(model_key)
+    except Exception as e:
+        logger.error(f"Failed to initialize LLM client {model_key}: {str(e)}")
+        return {
+            "validation_errors": [{"type": "api_config_error", "msg": str(e)}],
+            "attempts": state.get("attempts", 0) + 1
+        }
     
     content = []
     if state.get("cleaned_text"):
@@ -125,7 +133,13 @@ def targeted_retry_node(state: ExtractionState) -> Dict[str, Any]:
     prompt = build_targeted_retry_prompt(failed_fields, excerpt)
     
     model_key = state.get("current_model")
-    llm = get_llm(model_key)
+    try:
+        llm = get_llm(model_key)
+    except Exception as e:
+        return {
+            "validation_errors": [{"type": "api_config_error", "msg": str(e)}],
+            "attempts": state.get("attempts", 0) + 1
+        }
     
     try:
         result = llm.invoke([HumanMessage(content=prompt)])
