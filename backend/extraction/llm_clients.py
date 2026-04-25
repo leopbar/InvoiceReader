@@ -7,19 +7,19 @@ def get_llm(model_key: str):
     """
     Factory keyed on "gemini_cheap" / "gemini_expensive" / "openai_cheap" / "openai_expensive"
     """
-    gemini_api_key = os.environ.get("GEMINI_API_KEY")
+    google_api_key = os.environ.get("GOOGLE_API_KEY")
     openai_api_key = os.environ.get("OPENAI_API_KEY")
 
     if "gemini" in model_key:
-        if not gemini_api_key:
-            raise ValueError("GEMINI_API_KEY not found in environment")
+        if not google_api_key:
+            raise ValueError("GOOGLE_API_KEY not found in environment")
         
-        model_name = "gemini-3-flash-preview" if "cheap" in model_key else "gemini-3-flash-preview"
+        model_name = "gemini-3-flash-preview"
         
         # Note: structured output for Gemini via langchain
         return ChatGoogleGenerativeAI(
             model=model_name,
-            google_api_key=gemini_api_key,
+            google_api_key=google_api_key,
             temperature=0,
             response_mime_type="application/json",
             # We will pass the schema during the .with_structured_output call if supported, 
