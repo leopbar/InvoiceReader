@@ -15,6 +15,15 @@ def route_after_validate(state: ExtractionState):
     if not state.get("validation_errors") and not state.get("failed_fields"):
         return "finalize_success"
     
+    # If we have an API error (e.g. 429 Quota), jump straight to fallback
+    errors = state.get("validation_errors") or []
+    is_api_error = any(e.get("type") in ["api_error", "api_config_error"] for e in errors)
+    
+    if is_api_error:
+        if not state.get("fallback_used"):
+            return "fallback_model"
+        return "finalize_error"
+
     # If we have errors but NO specific failed fields, it's a generic failure.
     # Targeted retry won't help, so we go straight to fallback or error.
     if not state.get("failed_fields"):
