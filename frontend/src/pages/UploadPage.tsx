@@ -3,7 +3,8 @@ import { useBlocker } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import {
   UploadCloud, FileText, Loader2, CheckCircle, AlertCircle,
-  RotateCcw, Check, X, Clock, Cpu, Database, Zap, RefreshCw, FileSearch, Brain
+  RotateCcw, Check, X, Clock, Cpu, Database, Zap, RefreshCw, FileSearch, Brain,
+  ChevronRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { uploadInvoiceStreaming, saveInvoice } from '../services/api';
@@ -14,9 +15,9 @@ type StepId =
   | 'reading'
   | 'sending_to_ai'
   | 'waiting_for_ai'
-  | 'ai_failed'
-  | 'trying_new_ai'
   | 'ai_answering'
+  | 'targeted_retry'
+  | 'trying_new_ai'
   | 'preparing_data'
   | 'saving_data';
 
@@ -30,14 +31,14 @@ interface Step {
 }
 
 const makeSteps = (): Step[] => [
-  { id: 'reading',        label: 'Reading Invoice',      icon: <FileSearch size={14} />, status: 'pending' },
-  { id: 'sending_to_ai',  label: 'Sending to AI',        icon: <Cpu size={14} />,        status: 'pending' },
-  { id: 'waiting_for_ai', label: 'Waiting for AI',       icon: <Clock size={14} />,      status: 'pending' },
-  { id: 'ai_failed',      label: 'AI Not Responding',    icon: <AlertCircle size={14} />, status: 'hidden' },
-  { id: 'trying_new_ai',  label: 'Trying a New AI',      icon: <RefreshCw size={14} />,  status: 'hidden' },
-  { id: 'ai_answering',   label: 'AI Answering',         icon: <Brain size={14} />,      status: 'pending' },
-  { id: 'preparing_data', label: 'Preparing Data',       icon: <Zap size={14} />,        status: 'pending' },
-  { id: 'saving_data',    label: 'Saving Data',          icon: <Database size={14} />,   status: 'pending' },
+  { id: 'reading',        label: 'Preprocess Document',  icon: <FileSearch size={14} />, status: 'pending' },
+  { id: 'sending_to_ai',  label: 'Model Selector',       icon: <Cpu size={14} />,        status: 'pending' },
+  { id: 'waiting_for_ai', label: 'Extraction',           icon: <Brain size={14} />,      status: 'pending' },
+  { id: 'ai_answering',   label: 'Validator',            icon: <CheckCircle size={14} />,status: 'pending' },
+  { id: 'targeted_retry', label: 'Targeted Retry',       icon: <RefreshCw size={14} />,  status: 'pending' },
+  { id: 'trying_new_ai',  label: 'Fallback Model',       icon: <RefreshCw size={14} />,  status: 'pending' },
+  { id: 'preparing_data', label: 'Finalizing',           icon: <Zap size={14} />,        status: 'pending' },
+  { id: 'saving_data',    label: 'Saving to Database',   icon: <Database size={14} />,   status: 'pending' },
 ];
 
 // --- File result state ---
@@ -88,31 +89,44 @@ function getFriendlyErrorMessage(error: string): { title: string, message: strin
   };
 }
 
-// --- Step pipeline component ---
 function StepPipeline({ steps }: { steps: Step[] }) {
-  const visibleSteps = steps.filter(s => s.status !== 'hidden');
   return (
-    <div className="flex flex-wrap gap-2 px-6 pt-5 pb-8 border-b border-gray-100 bg-gray-50/30">
-      {visibleSteps.map((step, idx) => {
-        const isLast = idx === visibleSteps.length - 1;
+    <div className="flex flex-wrap items-center gap-y-8 gap-x-3 px-8 pt-10 pb-12 border-b border-gray-100 bg-gray-50/20">
+      {steps.map((step, idx) => {
+        const isLast = idx === steps.length - 1;
+        
+        let colorClasses = "bg-white text-gray-300 border-gray-100";
+        if (step.status === 'active') colorClasses = "bg-blue-600 text-white border-blue-600 ring-4 ring-blue-100 shadow-md scale-110 z-10 animate-pulse";
+        if (step.status === 'done')   colorClasses = "bg-green-50 text-green-700 border-green-200 shadow-sm";
+        if (step.status === 'error')  colorClasses = "bg-red-50 text-red-700 border-red-200 shadow-sm";
+
         return (
           <React.Fragment key={step.id}>
-            <div className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all duration-500
-              ${step.status === 'active'  ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-300 animate-pulse' : ''}
-              ${step.status === 'done'    ? 'bg-green-100 text-green-700' : ''}
-              ${step.status === 'error'   ? 'bg-red-100 text-red-700' : ''}
-              ${step.status === 'pending' ? 'bg-gray-100 text-gray-400' : ''}
+            <div className={`relative flex items-center space-x-3 px-5 py-3 rounded-xl border text-[10px] font-black transition-all duration-500 min-w-[150px] justify-center
+              ${colorClasses}
             `}>
               <span className="flex-shrink-0">
-                {step.status === 'done'   && <Check size={12} strokeWidth={3} />}
-                {step.status === 'error'  && <X size={12} strokeWidth={3} />}
-                {step.status === 'active' && <Loader2 size={12} className="animate-spin" />}
+                {step.status === 'done'   && <CheckCircle size={16} strokeWidth={3} />}
+                {step.status === 'error'  && <X size={16} strokeWidth={3} />}
+                {step.status === 'active' && <Loader2 size={16} className="animate-spin" />}
                 {step.status === 'pending' && step.icon}
               </span>
-              <span>{step.label}</span>
+              <span className="uppercase tracking-widest leading-none">{step.label}</span>
+              
+              {/* Active Badge */}
+              {step.status === 'active' && (
+                <span className="absolute -top-2 -right-2 flex h-4 w-4">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-4 w-4 bg-blue-500"></span>
+                </span>
+              )}
             </div>
             {!isLast && (
-              <div className="flex items-center text-gray-300 font-bold text-xs self-center">›</div>
+              <ChevronRight 
+                size={24} 
+                className={`transition-all duration-700 ${step.status === 'done' ? 'text-green-500 scale-110' : 'text-gray-200'}`} 
+                strokeWidth={4} 
+              />
             )}
           </React.Fragment>
         );
@@ -201,8 +215,8 @@ export default function UploadPage() {
           (step: string, _detail: string) => {
             completeActiveStep(i);
 
-            // For fallback steps, first un-hide them
-            if (step === 'ai_failed' || step === 'trying_new_ai') {
+            // For conditional steps, first un-hide them
+            if (step === 'targeted_retry' || step === 'trying_new_ai') {
               setFileResults(prev => {
                 const next = [...prev];
                 const steps = next[i].steps.map(s =>

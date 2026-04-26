@@ -130,6 +130,7 @@ def validate_node(state: ExtractionState) -> Dict[str, Any]:
 def targeted_retry_node(state: ExtractionState) -> Dict[str, Any]:
     failed_fields = state.get("failed_fields") or []
     cleaned_text = state.get("cleaned_text", "")
+    _emit(state, "targeted_retry", f"Correcting {len(failed_fields)} fields")
     
     if not failed_fields:
         return {"attempts": state.get("attempts", 0) + 1}

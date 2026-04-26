@@ -9,6 +9,9 @@
   <a href="https://www.linkedin.com/in/leonardo-barretti/">
     <img src="https://img.shields.io/badge/LinkedIn-Leonardo_Barretti-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white" alt="LinkedIn" />
   </a>
+  <a href="mailto:lbarretti@gmail.com">
+    <img src="https://img.shields.io/badge/📧_Request_Demo_Access-Contact-orange?style=for-the-badge" alt="Email" />
+  </a>
 </p>
 
 <p align="center">
@@ -26,6 +29,16 @@
   <img src="https://img.shields.io/badge/Tests-pytest-0A9EDC?style=flat&logo=pytest&logoColor=white" />
   <img src="https://img.shields.io/badge/Deploy-Hostinger_VPS-673AB7?style=flat" />
 </p>
+
+---
+
+## 🎬 See It In Action
+
+<p align="center">
+  <img src="assets/process_inpgrogress.gif" alt="InvoiceReader live extraction pipeline" width="800" />
+</p>
+
+> Watch the LangGraph pipeline run in real time: each node streams its progress to the UI via Server-Sent Events. When the primary LLM fails, the system automatically falls back to a secondary provider — without the user noticing.
 
 ---
 
@@ -48,6 +61,24 @@ InvoiceReader treats extraction as a **stateful, observable, self-correcting wor
 7. Lets users build custom column views, copy individual fields, or export to CSV
 
 [**🌐 Try the live demo →**](https://invoicereader.duckdns.org/)
+
+---
+
+## 🧪 Want to Test the Application?
+
+The deployed version requires authentication to prevent abuse and protect API costs. **If you'd like access to test the live application, please reach out:**
+
+📧 **Email:** [lbarretti@gmail.com](mailto:lbarretti@gmail.com)
+
+I'll be happy to provide you with credentials to explore the full system, including:
+
+- Real-time streaming pipeline visualization
+- Multi-format invoice extraction (PDF, DOCX, images, text)
+- Customizable history view with 30+ columns
+- CSV export and column-level copy operations
+- Admin panel for user management
+
+Recruiters, hiring managers, and curious developers are all welcome.
 
 ---
 
@@ -177,7 +208,7 @@ data: {"type":"progress","step":"preparing_data","detail":"Structuring..."}
 data: {"type":"result","data": {...full extracted invoice...}}
 ```
 
-The React frontend reads this stream and animates a real-time pipeline visualization showing each step the agent takes — including fallback transitions when one LLM fails. This dramatically improves perceived reliability and gives users (and developers) real-time observability into the AI's decisions.
+The React frontend reads this stream and animates a real-time pipeline visualization showing each step the agent take — including fallback transitions when one LLM fails. This dramatically improves perceived reliability and gives users (and developers) real-time observability into the AI's decisions.
 
 ---
 
@@ -258,6 +289,10 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+
+# Admin bootstrap (used by create_admin.py)
+ADMIN_EMAIL=your_admin_email@example.com
+ADMIN_PASSWORD=your_strong_admin_password
 ```
 
 Create `frontend/.env`:
@@ -278,6 +313,8 @@ Run the SQL schema in your Supabase SQL editor (creates tables for `suppliers`, 
 cd backend
 python create_admin.py
 ```
+
+The script reads `ADMIN_EMAIL` and `ADMIN_PASSWORD` from your `.env` file — credentials are never hardcoded in source code.
 
 ### Run the application
 
@@ -318,16 +355,10 @@ pytest tests/test_file_processor.py # File reading + base64 encoding
 pytest tests/test_prompts.py        # Prompt templates
 ```
 
-### E2E and integration tests
+### Security boundary tests
 
 ```bash
-# Multi-format upload integration test (requires running server)
-python tests/test_multiformat_upload.py
-
-# Full E2E test (upload → extract → save → verify)
-python tests/test_upload_e2e.py
-
-# Security boundary tests (auth, file size, SQL injection)
+# Tests for auth, file size limits, SQL injection (requires running server)
 python tests/test_security_api.py
 ```
 
@@ -352,7 +383,7 @@ InvoiceReader/
 │   ├── file_processor.py           # PDF/DOCX/image/text parsing
 │   ├── supabase_service.py         # DB persistence (suppliers, invoices, items)
 │   ├── setup_db.sql                # Schema migration for Supabase
-│   ├── create_admin.py             # Bootstrap initial admin user
+│   ├── create_admin.py             # Bootstrap initial admin user (env-based)
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
@@ -364,6 +395,7 @@ InvoiceReader/
 │   │   └── main.tsx
 │   ├── package.json
 │   └── vite.config.ts
+├── assets/                         # README screenshots and GIFs
 ├── start.sh                        # One-command startup
 ├── package.json                    # npm workspaces root
 └── README.md
@@ -380,9 +412,11 @@ This project applies several production security practices:
 - **Service-role Supabase client** is server-only and never exposed to the frontend
 - **Row Level Security (RLS)** enabled on every Supabase table
 - **File size limit** (10 MB) and empty-file rejection on upload
+- **CORS allowlist** configurable via env var (no `*` in production with credentials)
 - **Bearer token format enforced** — rejects Basic auth and missing headers
 - **Cannot delete yourself** — admin user deletion guard
 - **Production mode disables `/docs` and `/redoc`** to reduce attack surface
+- **No credentials in source code** — all secrets loaded from `.env` files (never committed)
 
 > ⚠️ **Note on initial development:** the SQL schema currently uses permissive RLS policies (`USING (true)`) for rapid iteration. Production deployments should tighten these to per-user policies (e.g., `USING (auth.uid() = user_id)`).
 
@@ -421,7 +455,10 @@ A few specific takeaways from building a real production AI system:
 Building production AI systems with Python, focusing on robust LLM integration, agentic workflows, and clean engineering practices.
 
 - 💼 **LinkedIn:** [linkedin.com/in/leonardo-barretti](https://www.linkedin.com/in/leonardo-barretti/)
+- 📧 **Email:** [lbarretti@gmail.com](mailto:lbarretti@gmail.com)
 - 🐙 **GitHub:** [@leopbar](https://github.com/leopbar)
+
+> 💬 **Want to test the live application or discuss the architecture?** Feel free to email me at [lbarretti@gmail.com](mailto:lbarretti@gmail.com) — I'm always happy to chat about LLM engineering, agentic workflows, or interesting opportunities.
 
 ---
 
