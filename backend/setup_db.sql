@@ -85,3 +85,20 @@ CREATE TABLE IF NOT EXISTS user_roles (
 -- Enable RLS and simple policy for user_roles
 ALTER TABLE user_roles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all operations for everyone" ON user_roles FOR ALL USING (true) WITH CHECK (true);
+
+-- ============================================================
+-- 8. Explicit GRANTs for Supabase Data API (PostgREST)
+--    Required from May 30, 2026 (new projects) and
+--    October 30, 2026 (all existing projects).
+--    Without these, PostgREST returns a 42501 error and all
+--    supabase.table(...) calls will fail.
+-- ============================================================
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.suppliers         TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.invoices          TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.invoice_items     TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.invoice_addresses TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_roles        TO authenticated, service_role;
+
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated, service_role;
