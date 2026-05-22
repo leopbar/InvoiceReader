@@ -3,7 +3,7 @@
 > **Production-grade invoice extraction system** with self-correcting LangGraph pipeline, multi-LLM fallback, real-time streaming progress, and full role-based access control.
 
 <p align="center">
-  <a href="https://invoicereader.duckdns.org/">
+  <a href="https://invoice.lbai.dev/">
     <img src="https://img.shields.io/badge/🚀_Live_Demo-Online-success?style=for-the-badge" alt="Live Demo" />
   </a>
   <a href="https://www.linkedin.com/in/leonardo-barretti/">
@@ -60,7 +60,7 @@ InvoiceReader treats extraction as a **stateful, observable, self-correcting wor
 6. Persists validated data to a normalized PostgreSQL schema
 7. Lets users build custom column views, copy individual fields, or export to CSV
 
-[**🌐 Try the live demo →**](https://invoicereader.duckdns.org/)
+[**🌐 Try the live demo →**](https://invoice.lbai.dev/)
 
 ---
 
